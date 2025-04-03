@@ -111,16 +111,40 @@ const AdminDashboard = () => {
     }));
   };
 
+  const getDateString = (date) => {
+    return date.toISOString().split('T')[0];
+  };
+
   const updateChartData = (bookings) => {
+    const today = new Date();
     const last7Days = Array.from({ length: 7 }, (_, i) => {
-      const d = new Date();
+      const d = new Date(today);
       d.setDate(d.getDate() - i);
-      return d.toISOString().split('T')[0];
+      return getDateString(d);
     }).reverse();
 
     const bookingsByDay = last7Days.map(date => {
       const dayBookings = bookings.filter(doc => {
-        const bookingDate = doc.data().createdAt?.split('T')[0];
+        const bookingData = doc.data();
+        const createdAt = bookingData.createdAt;
+        
+        if (!createdAt) return false;
+
+        let bookingDate;
+        try {
+          // Handle both timestamp and ISO string formats
+          if (createdAt.toDate) {
+            bookingDate = getDateString(createdAt.toDate());
+          } else if (typeof createdAt === 'string') {
+            bookingDate = createdAt.split('T')[0];
+          } else {
+            bookingDate = getDateString(new Date(createdAt));
+          }
+        } catch (error) {
+          console.error('Error parsing date:', error);
+          return false;
+        }
+
         return bookingDate === date;
       });
 
