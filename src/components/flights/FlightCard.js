@@ -10,45 +10,36 @@ const FlightCard = ({ flight, onSelect }) => {
   const [savedId, setSavedId] = useState(null);
   const [showShareTooltip, setShowShareTooltip] = useState(false);
   const [availableSeats, setAvailableSeats] = useState({
-    economy: flight.totalSeats?.economy || 0,
-    business: flight.totalSeats?.business || 0,
-    first: flight.totalSeats?.first || 0
+    economy: flight.seatsAvailable?.economy || 0,
+    business: flight.seatsAvailable?.business || 0,
+    first: flight.seatsAvailable?.first || 0
   });
   const { user } = useAuth();
 
   useEffect(() => {
     checkIfSaved();
-    const unsubscribe = setupRealtimeSeats();
-    return () => unsubscribe();
-  }, [flight.id, user?.uid]);
-
-  const setupRealtimeSeats = () => {
-    // Listen to bookings for this flight to track seat availability
-    const bookingsRef = collection(db, 'bookings');
-    const q = query(bookingsRef, where('flightId', '==', flight.id));
-    
-    return onSnapshot(q, (snapshot) => {
-      const bookedSeats = {
-        economy: 0,
-        business: 0,
-        first: 0
-      };
-
-      snapshot.docs.forEach(doc => {
-        const booking = doc.data();
-        if (booking.status !== 'cancelled') {
-          const seatClass = booking.selectedClass?.toLowerCase() || 'economy';
-          bookedSeats[seatClass] += booking.passengers?.length || 0;
+    let unsubscribe;
+    if (flight.id) {
+      unsubscribe = onSnapshot(doc(db, 'flights', flight.id), (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          setAvailableSeats({
+            economy: data.seatsAvailable?.economy || 0,
+            business: data.seatsAvailable?.business || 0,
+            first: data.seatsAvailable?.first || 0
+          });
         }
+      }, (error) => {
+        console.error('Error tracking seats:', error);
       });
+    }
 
-      setAvailableSeats({
-        economy: Math.max(0, (flight.totalSeats?.economy || 0) - bookedSeats.economy),
-        business: Math.max(0, (flight.totalSeats?.business || 0) - bookedSeats.business),
-        first: Math.max(0, (flight.totalSeats?.first || 0) - bookedSeats.first)
-      });
-    });
-  };
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [flight.id]);
 
   const checkIfSaved = async () => {
     if (!user) return;
@@ -234,11 +225,20 @@ const FlightCard = ({ flight, onSelect }) => {
           <div className="flex justify-between items-center">
             <div className="text-sm text-gray-600">
               <span className="font-semibold">Available Seats:</span>
-              <span className="ml-2">
-                Economy: {availableSeats.economy || 0},
-                Business: {availableSeats.business || 0},
-                First: {availableSeats.first || 0}
-              </span>
+              <div className="flex items-center text-gray-600 mt-1">
+                <div className="mr-4">
+                  <span className="font-semibold">{availableSeats.economy}</span>
+                  <span className="ml-1">Economy</span>
+                </div>
+                <div className="mr-4">
+                  <span className="font-semibold">{availableSeats.business}</span>
+                  <span className="ml-1">Business</span>
+                </div>
+                <div>
+                  <span className="font-semibold">{availableSeats.first}</span>
+                  <span className="ml-1">First</span>
+                </div>
+              </div>
             </div>
             <button
               onClick={() => onSelect(flight)}

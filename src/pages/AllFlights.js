@@ -4,7 +4,7 @@ import { collection, getDocs } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../config/firebase';
 import DashboardLayout from '../components/layouts/DashboardLayout';
-import FlightCard from '../components/flights/FlightCard';
+import FlightResults from '../components/flights/FlightResults';
 import { FaPlane, FaSearch, FaFilter, FaChevronDown, FaChevronUp } from 'react-icons/fa';
 
 const AllFlights = () => {
@@ -18,11 +18,15 @@ const AllFlights = () => {
     date: '',
     passengers: 1,
     priceRange: [0, 5000],
+    duration: [0, 24],
     airline: '',
+    airlines: [],
     stops: 'any',
-    sortBy: 'price'
+    sortBy: 'price',
+    departureTime: 'any',
+    arrivalTime: 'any',
+    cabinClass: 'any'
   });
-  const navigate = useNavigate();
 
   useEffect(() => {
     fetchFlights();
@@ -46,16 +50,20 @@ const AllFlights = () => {
     }
   };
 
-  const handleFlightSelect = (flight) => {
-    navigate(`/flights/${flight.id}`);
-  };
-
-  const handleFilterChange = (e) => {
-    const { name, value } = e.target;
-    setFilters(prev => ({
-      ...prev,
-      [name]: value
-    }));
+  const handleFilterChange = (newFilters) => {
+    // Ensure all filter properties are properly initialized
+    const updatedFilters = {
+      ...filters,
+      ...newFilters,
+      priceRange: newFilters.priceRange || filters.priceRange,
+      duration: newFilters.duration || filters.duration,
+      airlines: newFilters.airlines || filters.airlines,
+      stops: newFilters.stops || filters.stops,
+      departureTime: newFilters.departureTime || filters.departureTime,
+      arrivalTime: newFilters.arrivalTime || filters.arrivalTime,
+      cabinClass: newFilters.cabinClass || filters.cabinClass
+    };
+    setFilters(updatedFilters);
   };
 
   // Only apply filters if there's a search term or any filter is active
@@ -168,7 +176,7 @@ const AllFlights = () => {
                       type="text"
                       name="departureCity"
                       value={filters.departureCity}
-                      onChange={handleFilterChange}
+                      onChange={(e) => handleFilterChange({ ...filters, departureCity: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary"
                       placeholder="From"
                     />
@@ -181,7 +189,7 @@ const AllFlights = () => {
                       type="text"
                       name="arrivalCity"
                       value={filters.arrivalCity}
-                      onChange={handleFilterChange}
+                      onChange={(e) => handleFilterChange({ ...filters, arrivalCity: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary"
                       placeholder="To"
                     />
@@ -194,53 +202,9 @@ const AllFlights = () => {
                       type="text"
                       name="airline"
                       value={filters.airline}
-                      onChange={handleFilterChange}
+                      onChange={(e) => handleFilterChange({ ...filters, airline: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary"
                       placeholder="Airline name"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Stops
-                    </label>
-                    <select
-                      name="stops"
-                      value={filters.stops}
-                      onChange={handleFilterChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary"
-                    >
-                      <option value="any">Any</option>
-                      <option value="0">Non-stop</option>
-                      <option value="1">1 Stop</option>
-                      <option value="2">2+ Stops</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Sort By
-                    </label>
-                    <select
-                      name="sortBy"
-                      value={filters.sortBy}
-                      onChange={handleFilterChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary"
-                    >
-                      <option value="price">Price: Low to High</option>
-                      <option value="duration">Duration: Shortest</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Passengers
-                    </label>
-                    <input
-                      type="number"
-                      name="passengers"
-                      value={filters.passengers}
-                      onChange={handleFilterChange}
-                      min="1"
-                      max="9"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary"
                     />
                   </div>
                 </div>
@@ -249,43 +213,13 @@ const AllFlights = () => {
           </AnimatePresence>
         </div>
 
-        {loading ? (
-          <div className="flex justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
-          </div>
-        ) : filteredFlights.length > 0 ? (
-          <AnimatePresence>
-            <div className="grid grid-cols-1 gap-6">
-              {filteredFlights.map((flight) => (
-                <motion.div
-                  key={flight.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                >
-                  <FlightCard
-                    flight={flight}
-                    onSelect={() => handleFlightSelect(flight)}
-                  />
-                </motion.div>
-              ))}
-            </div>
-          </AnimatePresence>
-        ) : (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="bg-white rounded-lg shadow-sm p-8 text-center"
-          >
-            <FaPlane className="mx-auto text-4xl text-gray-400 mb-4" />
-            <h3 className="text-xl font-semibold text-gray-800 mb-2">No Flights Found</h3>
-            <p className="text-gray-600">
-              {isFilterActive()
-                ? 'Try adjusting your search criteria'
-                : 'No flights are currently available'}
-            </p>
-          </motion.div>
-        )}
+        {/* Flight Results */}
+        <FlightResults
+          flights={filteredFlights}
+          loading={loading}
+          filters={filters}
+          onFilterChange={handleFilterChange}
+        />
       </div>
     </DashboardLayout>
   );

@@ -1,243 +1,215 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { FaPlane, FaClock, FaDollarSign, FaSun, FaMoon, FaCouch } from 'react-icons/fa';
+import { motion, AnimatePresence } from 'framer-motion';
+import { FaChevronDown, FaChevronUp } from 'react-icons/fa';
 import Slider from 'rc-slider';
 import 'rc-slider/assets/index.css';
 
 const SearchFilters = ({ filters, onFilterChange }) => {
+  const [expandedSections, setExpandedSections] = useState({
+    price: true,
+    duration: true,
+    stops: true,
+    time: false,
+    airline: false,
+    class: false
+  });
+
   const [localFilters, setLocalFilters] = useState(filters);
 
-  const airlines = [
-    'Emirates',
-    'Qatar Airways',
-    'Lufthansa',
-    'British Airways',
-    'Air France',
-    'KLM',
-    'Singapore Airlines',
-    'Turkish Airlines',
-    'Etihad Airways',
-    'American Airlines'
-  ];
-
-  const timeSlots = [
-    { value: 'any', label: 'Any Time' },
-    { value: 'morning', label: 'Morning (6AM-12PM)' },
-    { value: 'afternoon', label: 'Afternoon (12PM-6PM)' },
-    { value: 'evening', label: 'Evening (After 6PM)' }
-  ];
-
-  const cabinClasses = [
-    { value: 'any', label: 'Any Class' },
-    { value: 'economy', label: 'Economy' },
-    { value: 'premium_economy', label: 'Premium Economy' },
-    { value: 'business', label: 'Business' },
-    { value: 'first', label: 'First Class' }
-  ];
-
   useEffect(() => {
-    onFilterChange(localFilters);
-  }, [localFilters, onFilterChange]);
+    setLocalFilters(filters);
+  }, [filters]);
+
+  const toggleSection = (section) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
+  };
+
+  const FilterSection = ({ title, section, children }) => (
+    <div className="border-b border-gray-200 py-4 last:border-b-0">
+      <button
+        onClick={() => toggleSection(section)}
+        className="flex items-center justify-between w-full text-left"
+      >
+        <span className="font-medium text-gray-700">{title}</span>
+        {expandedSections[section] ? <FaChevronUp /> : <FaChevronDown />}
+      </button>
+      <AnimatePresence>
+        {expandedSections[section] && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="pt-4">
+              {children}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
 
   const handlePriceChange = (value) => {
-    setLocalFilters(prev => ({
-      ...prev,
-      priceRange: value,
-    }));
+    const newFilters = {
+      ...localFilters,
+      priceRange: value
+    };
+    setLocalFilters(newFilters);
+    onFilterChange(newFilters);
   };
 
   const handleDurationChange = (value) => {
-    setLocalFilters(prev => ({
-      ...prev,
-      duration: value,
-    }));
+    const newFilters = {
+      ...localFilters,
+      duration: value
+    };
+    setLocalFilters(newFilters);
+    onFilterChange(newFilters);
   };
 
   const handleStopsChange = (value) => {
-    setLocalFilters(prev => ({
-      ...prev,
-      stops: value,
-    }));
+    const newFilters = {
+      ...localFilters,
+      stops: value
+    };
+    setLocalFilters(newFilters);
+    onFilterChange(newFilters);
   };
 
   const handleAirlineToggle = (airline) => {
-    setLocalFilters(prev => ({
-      ...prev,
-      airlines: prev.airlines.includes(airline)
-        ? prev.airlines.filter(a => a !== airline)
-        : [...prev.airlines, airline],
-    }));
+    const newAirlines = localFilters.airlines.includes(airline)
+      ? localFilters.airlines.filter(a => a !== airline)
+      : [...localFilters.airlines, airline];
+    
+    const newFilters = {
+      ...localFilters,
+      airlines: newAirlines
+    };
+    setLocalFilters(newFilters);
+    onFilterChange(newFilters);
   };
 
   const handleTimeChange = (type, value) => {
-    setLocalFilters(prev => ({
-      ...prev,
-      [type]: value,
-    }));
+    const newFilters = {
+      ...localFilters,
+      [type]: value
+    };
+    setLocalFilters(newFilters);
+    onFilterChange(newFilters);
   };
 
   const handleCabinClassChange = (value) => {
-    setLocalFilters(prev => ({
-      ...prev,
-      cabinClass: value,
-    }));
+    const newFilters = {
+      ...localFilters,
+      cabinClass: value
+    };
+    setLocalFilters(newFilters);
+    onFilterChange(newFilters);
   };
 
   return (
-    <div className="space-y-6">
-      {/* Price Range */}
-      <div>
-        <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
-          <FaDollarSign className="mr-2" />
-          Price Range
-        </h3>
-        <Slider
-          range
-          min={0}
-          max={2000}
-          value={localFilters.priceRange}
-          onChange={handlePriceChange}
-          className="mt-2"
-          trackStyle={[{ backgroundColor: '#8F87F1' }]}
-          handleStyle={[
-            { borderColor: '#8F87F1', backgroundColor: '#8F87F1' },
-            { borderColor: '#8F87F1', backgroundColor: '#8F87F1' },
-          ]}
-          railStyle={{ backgroundColor: '#E5E7EB' }}
-        />
-        <div className="flex justify-between mt-2 text-sm text-gray-600">
-          <span>${localFilters.priceRange[0]}</span>
-          <span>${localFilters.priceRange[1]}</span>
+    <div className="space-y-1">
+      <FilterSection title="Price Range" section="price">
+        <div className="px-2">
+          <Slider
+            range
+            min={0}
+            max={5000}
+            value={filters.priceRange}
+            onChange={handlePriceChange}
+            className="my-6"
+          />
+          <div className="flex justify-between text-sm text-gray-600">
+            <span>${filters.priceRange[0]}</span>
+            <span>${filters.priceRange[1]}</span>
+          </div>
         </div>
-      </div>
+      </FilterSection>
 
-      {/* Duration */}
-      <div>
-        <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
-          <FaClock className="mr-2" />
-          Flight Duration (hours)
-        </h3>
-        <Slider
-          range
-          min={0}
-          max={24}
-          value={localFilters.duration}
-          onChange={handleDurationChange}
-          className="mt-2"
-          trackStyle={[{ backgroundColor: '#8F87F1' }]}
-          handleStyle={[
-            { borderColor: '#8F87F1', backgroundColor: '#8F87F1' },
-            { borderColor: '#8F87F1', backgroundColor: '#8F87F1' },
-          ]}
-          railStyle={{ backgroundColor: '#E5E7EB' }}
-        />
-        <div className="flex justify-between mt-2 text-sm text-gray-600">
-          <span>{localFilters.duration[0]}h</span>
-          <span>{localFilters.duration[1]}h</span>
+      <FilterSection title="Flight Duration" section="duration">
+        <div className="px-2">
+          <Slider
+            range
+            min={0}
+            max={24}
+            value={filters.duration}
+            onChange={handleDurationChange}
+            className="my-6"
+          />
+          <div className="flex justify-between text-sm text-gray-600">
+            <span>{filters.duration[0]}h</span>
+            <span>{filters.duration[1]}h</span>
+          </div>
         </div>
-      </div>
+      </FilterSection>
 
-      {/* Stops */}
-      <div>
-        <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
-          <FaPlane className="mr-2" />
-          Stops
-        </h3>
+      <FilterSection title="Stops" section="stops">
         <div className="space-y-2">
-          {['any', 'nonstop', '1-stop', '2-stops'].map((option) => (
-            <label key={option} className="flex items-center">
+          {['any', '0', '1', '2'].map((stop) => (
+            <label key={stop} className="flex items-center">
               <input
                 type="radio"
-                checked={localFilters.stops === option}
-                onChange={() => handleStopsChange(option)}
-                className="h-4 w-4 text-primary border-gray-300 focus:ring-primary"
-              />
-              <span className="ml-2 text-sm text-gray-700 capitalize">
-                {option === 'any' ? 'Any' : option}
-              </span>
-            </label>
-          ))}
-        </div>
-      </div>
-
-      {/* Departure Time */}
-      <div>
-        <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
-          <FaSun className="mr-2" />
-          Departure Time
-        </h3>
-        <div className="space-y-2">
-          {timeSlots.map((slot) => (
-            <label key={slot.value} className="flex items-center">
-              <input
-                type="radio"
-                checked={localFilters.departureTime === slot.value}
-                onChange={() => handleTimeChange('departureTime', slot.value)}
+                checked={filters.stops === stop}
+                onChange={() => handleStopsChange(stop)}
                 className="h-4 w-4 text-primary border-gray-300 focus:ring-primary"
               />
               <span className="ml-2 text-sm text-gray-700">
-                {slot.label}
+                {stop === 'any' ? 'Any' : `${stop} ${parseInt(stop) === 1 ? 'stop' : 'stops'}`}
               </span>
             </label>
           ))}
         </div>
-      </div>
+      </FilterSection>
 
-      {/* Arrival Time */}
-      <div>
-        <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
-          <FaMoon className="mr-2" />
-          Arrival Time
-        </h3>
+      <FilterSection title="Flight Times" section="time">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Departure Time
+            </label>
+            <select
+              value={filters.departureTime}
+              onChange={(e) => handleTimeChange('departureTime', e.target.value)}
+              className="w-full h-10 px-3 rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              <option value="any">Any Time</option>
+              <option value="morning">Morning (6AM - 12PM)</option>
+              <option value="afternoon">Afternoon (12PM - 6PM)</option>
+              <option value="evening">Evening (6PM - 12AM)</option>
+              <option value="night">Night (12AM - 6AM)</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Arrival Time
+            </label>
+            <select
+              value={filters.arrivalTime}
+              onChange={(e) => handleTimeChange('arrivalTime', e.target.value)}
+              className="w-full h-10 px-3 rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              <option value="any">Any Time</option>
+              <option value="morning">Morning (6AM - 12PM)</option>
+              <option value="afternoon">Afternoon (12PM - 6PM)</option>
+              <option value="evening">Evening (6PM - 12AM)</option>
+              <option value="night">Night (12AM - 6AM)</option>
+            </select>
+          </div>
+        </div>
+      </FilterSection>
+
+      <FilterSection title="Airlines" section="airline">
         <div className="space-y-2">
-          {timeSlots.map((slot) => (
-            <label key={slot.value} className="flex items-center">
-              <input
-                type="radio"
-                checked={localFilters.arrivalTime === slot.value}
-                onChange={() => handleTimeChange('arrivalTime', slot.value)}
-                className="h-4 w-4 text-primary border-gray-300 focus:ring-primary"
-              />
-              <span className="ml-2 text-sm text-gray-700">
-                {slot.label}
-              </span>
-            </label>
-          ))}
-        </div>
-      </div>
-
-      {/* Cabin Class */}
-      <div>
-        <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
-          <FaCouch className="mr-2" />
-          Cabin Class
-        </h3>
-        <div className="space-y-2">
-          {cabinClasses.map((cabin) => (
-            <label key={cabin.value} className="flex items-center">
-              <input
-                type="radio"
-                checked={localFilters.cabinClass === cabin.value}
-                onChange={() => handleCabinClassChange(cabin.value)}
-                className="h-4 w-4 text-primary border-gray-300 focus:ring-primary"
-              />
-              <span className="ml-2 text-sm text-gray-700">
-                {cabin.label}
-              </span>
-            </label>
-          ))}
-        </div>
-      </div>
-
-      {/* Airlines */}
-      <div>
-        <h3 className="text-sm font-medium text-gray-700 mb-3">Airlines</h3>
-        <div className="space-y-2 max-h-48 overflow-y-auto">
-          {airlines.map((airline) => (
+          {['Emirates', 'Qatar Airways', 'Lufthansa', 'British Airways'].map((airline) => (
             <label key={airline} className="flex items-center">
               <input
                 type="checkbox"
-                checked={localFilters.airlines.includes(airline)}
+                checked={filters.airlines.includes(airline)}
                 onChange={() => handleAirlineToggle(airline)}
                 className="h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary"
               />
@@ -245,15 +217,25 @@ const SearchFilters = ({ filters, onFilterChange }) => {
             </label>
           ))}
         </div>
-      </div>
+      </FilterSection>
 
-      {/* Reset Filters */}
-      <button
-        onClick={() => setLocalFilters(filters)}
-        className="w-full text-sm text-primary hover:text-primary-hover transition-colors"
-      >
-        Reset Filters
-      </button>
+      <FilterSection title="Cabin Class" section="class">
+        <div className="space-y-2">
+          {['any', 'economy', 'business', 'first'].map((cabinClass) => (
+            <label key={cabinClass} className="flex items-center">
+              <input
+                type="radio"
+                checked={filters.cabinClass === cabinClass}
+                onChange={() => handleCabinClassChange(cabinClass)}
+                className="h-4 w-4 text-primary border-gray-300 focus:ring-primary"
+              />
+              <span className="ml-2 text-sm text-gray-700">
+                {cabinClass.charAt(0).toUpperCase() + cabinClass.slice(1)}
+              </span>
+            </label>
+          ))}
+        </div>
+      </FilterSection>
     </div>
   );
 };

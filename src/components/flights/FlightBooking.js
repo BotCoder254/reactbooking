@@ -1,166 +1,210 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 import { db } from '../../config/firebase';
-import { collection, addDoc, serverTimestamp, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, onSnapshot, doc, setDoc, updateDoc, increment } from 'firebase/firestore';
+import { FaTimes, FaUser, FaEnvelope, FaPhone } from 'react-icons/fa';
 
 const FlightBooking = ({ flight, onClose }) => {
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
+  const { user } = useAuth();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [availableSeats, setAvailableSeats] = useState({
-    economy: flight.totalSeats?.economy || 0,
-    business: flight.totalSeats?.business || 0,
-    first: flight.totalSeats?.first || 0
+    economy: 0,
+    business: 0,
+    first: 0
   });
-  const [formData, setFormData] = useState({
-    passengers: [{
-      title: '',
-      firstName: '',
-      lastName: '',
-      dateOfBirth: '',
-      passportNumber: '',
-      nationality: '',
-      seatNumber: '',
-      seatClass: 'economy'
-    }],
-    contactInfo: {
-      email: currentUser?.email || '',
-      phone: '',
-      address: '',
-    },
-    seatPreferences: {
-      seatType: 'window',
-      mealPreference: 'standard',
-      specialAssistance: false,
-    },
+  const [passengers, setPassengers] = useState([{
+    firstName: '',
+    lastName: '',
+    type: 'adult',
+    seatClass: 'economy',
+    seatNumber: '',
+    specialRequests: ''
+  }]);
+  const [contactInfo, setContactInfo] = useState({
+    email: user?.email || '',
+    phone: '',
+    address: '',
+  });
+  const [preferences, setPreferences] = useState({
+    seatPreference: 'window',
+    mealPreference: 'standard',
+    specialAssistance: false,
   });
 
   useEffect(() => {
-    const unsubscribe = setupRealtimeSeats();
-    return () => unsubscribe();
+    let unsubscribe;
+    if (flight.id) {
+      unsubscribe = onSnapshot(doc(db, 'flights', flight.id), (doc) => {
+      if (doc.exists()) {
+          const data = doc.data();
+        setAvailableSeats({
+            economy: data.seatsAvailable?.economy || 0,
+            business: data.seatsAvailable?.business || 0,
+            first: data.seatsAvailable?.first || 0
+        });
+      }
+    });
+    }
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, [flight.id]);
 
-  const setupRealtimeSeats = () => {
-    const bookingsRef = collection(db, 'bookings');
-    const q = query(bookingsRef, where('flightId', '==', flight.id));
-    
-    return onSnapshot(q, (snapshot) => {
-      const bookedSeats = {
-        economy: 0,
-        business: 0,
-        first: 0
-      };
-      const occupiedSeatNumbers = new Set();
-
-      snapshot.docs.forEach(doc => {
-        const booking = doc.data();
-        if (booking.status !== 'cancelled') {
-          const passengers = booking.passengers || [];
-          passengers.forEach(passenger => {
-            const seatClass = passenger.seatClass?.toLowerCase() || 'economy';
-            bookedSeats[seatClass]++;
-            if (passenger.seatNumber) {
-              occupiedSeatNumbers.add(passenger.seatNumber);
-            }
-          });
-        }
-      });
-
-      setAvailableSeats({
-        economy: Math.max(0, (flight.totalSeats?.economy || 0) - bookedSeats.economy),
-        business: Math.max(0, (flight.totalSeats?.business || 0) - bookedSeats.business),
-        first: Math.max(0, (flight.totalSeats?.first || 0) - bookedSeats.first)
-      });
-
-      // Update seat numbers for passengers if their seats are taken
-      setFormData(prev => ({
-        ...prev,
-        passengers: prev.passengers.map(passenger => ({
-          ...passenger,
-          seatNumber: occupiedSeatNumbers.has(passenger.seatNumber) ? '' : passenger.seatNumber
-        }))
-      }));
-    });
+  const removePassenger = (index) => {
+    setPassengers(prev => prev.filter((_, i) => i !== index));
   };
 
   const generateSeatNumber = (seatClass) => {
-    const prefix = seatClass === 'first' ? 'F' : seatClass === 'business' ? 'B' : 'E';
-    const row = Math.floor(Math.random() * 30) + 1;
-    const seat = String.fromCharCode(65 + Math.floor(Math.random() * 6));
-    return `${prefix}${row}${seat}`;
+    const prefix = {
+      'economy': 'E',
+      'business': 'B',
+      'first': 'F'
+    }[seatClass] || 'E';
+
+    const availableSeats = flight.seatsAvailable?.[seatClass] || 0;
+    if (availableSeats <= 0) return null;
+
+    // Generate a random seat number between 1 and available seats
+    const seatNumber = Math.floor(Math.random() * availableSeats) + 1;
+    return `${prefix}${seatNumber.toString().padStart(2, '0')}`;
   };
 
   const handlePassengerChange = (index, field, value) => {
-    const newPassengers = [...formData.passengers];
-    newPassengers[index] = { ...newPassengers[index], [field]: value };
-    
-    // Auto-assign seat number when class is selected
-    if (field === 'seatClass' && !newPassengers[index].seatNumber) {
-      newPassengers[index].seatNumber = generateSeatNumber(value);
-    }
-    
-    setFormData({ ...formData, passengers: newPassengers });
+    const updatedPassengers = [...passengers];
+    if (field === 'seatClass') {
+      // Generate new seat number when class changes
+      const newSeatNumber = generateSeatNumber(value);
+      updatedPassengers[index] = {
+        ...updatedPassengers[index],
+        [field]: value,
+        seatNumber: newSeatNumber
+      };
+    } else {
+    updatedPassengers[index] = {
+      ...updatedPassengers[index],
+      [field]: value
+    };
+      }
+    setPassengers(updatedPassengers);
   };
 
   const handleContactChange = (field, value) => {
-    setFormData({
-      ...formData,
-      contactInfo: { ...formData.contactInfo, [field]: value },
-    });
+    setContactInfo(prev => ({
+      ...prev,
+      [field]: value
+    }));
   };
 
   const handlePreferenceChange = (field, value) => {
-    setFormData({
-      ...formData,
-      seatPreferences: { ...formData.seatPreferences, [field]: value },
-    });
+    setPreferences(prev => ({
+      ...prev,
+      [field]: value
+    }));
   };
 
   const addPassenger = () => {
-    setFormData({
-      ...formData,
-      passengers: [
-        ...formData.passengers,
+    if (passengers.length < 9) {
+      const defaultClass = 'economy';
+      const newSeatNumber = generateSeatNumber(defaultClass);
+      setPassengers([
+        ...passengers,
         {
-          title: '',
           firstName: '',
           lastName: '',
-          dateOfBirth: '',
-          passportNumber: '',
-          nationality: '',
-          seatNumber: '',
-          seatClass: 'economy'
-        },
-      ],
-    });
+          type: 'adult',
+          seatClass: defaultClass,
+          seatNumber: newSeatNumber,
+          specialRequests: ''
+      }
+      ]);
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setError(null);
+
+    if (!user) {
+      setError('Please log in to make a booking');
+      setLoading(false);
+      return;
+    }
 
     try {
+      // Calculate total price based on seat classes
+      const totalPrice = passengers.reduce((sum, passenger) => {
+        const basePrice = flight.price || 0;
+        const multiplier = {
+          economy: 1,
+          business: 2.5,
+          first: 4
+        };
+        return sum + (basePrice * multiplier[passenger.seatClass.toLowerCase()]);
+      }, 0);
+
+      // Group passengers by seat class
+      const passengersByClass = passengers.reduce((acc, passenger) => {
+        const seatClass = passenger.seatClass.toLowerCase();
+        acc[seatClass] = (acc[seatClass] || 0) + 1;
+        return acc;
+      }, {});
+
+      // Verify seat availability
+      for (const [seatClass, count] of Object.entries(passengersByClass)) {
+        if (availableSeats[seatClass] < count) {
+          throw new Error(`Not enough ${seatClass} seats available`);
+        }
+      }
+
+      // Update available seats for each class
+      const flightRef = doc(db, 'flights', flight.id);
+      const updates = {};
+      
+      for (const [seatClass, count] of Object.entries(passengersByClass)) {
+        updates[`seatsAvailable.${seatClass}`] = increment(-count);
+      }
+      
+      await updateDoc(flightRef, updates);
+
+      // Create booking document
       const bookingData = {
-        userId: currentUser.uid,
+        userId: user.uid,
         flightId: flight.id,
-        flightDetails: flight,
-        passengers: formData.passengers,
-        contactInfo: formData.contactInfo,
-        seatPreferences: formData.seatPreferences,
+        flightDetails: {
+          airline: flight.airline,
+          flightNumber: flight.flightNumber,
+          departureCity: flight.departureCity,
+          arrivalCity: flight.arrivalCity,
+          departureTime: flight.departureTime,
+          arrivalTime: flight.arrivalTime
+        },
+        passengers: passengers.map(p => ({
+          ...p,
+          seatNumber: generateSeatNumber(p.seatClass)
+        })),
+        contactInfo,
+        preferences,
+        totalPrice,
         status: 'pending',
-        totalPrice: flight.price * formData.passengers.length,
-        createdAt: serverTimestamp(),
+        createdAt: new Date().toISOString()
       };
 
+      // Create booking
       const bookingRef = await addDoc(collection(db, 'bookings'), bookingData);
-      
+
+      // Navigate to payment
       navigate(`/bookings/${bookingRef.id}/payment`);
     } catch (error) {
       console.error('Error creating booking:', error);
-      // Handle error appropriately
+      setError(error.message || 'Failed to create booking. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -171,22 +215,22 @@ const FlightBooking = ({ flight, onClose }) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4"
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
     >
-      <div className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6">
-          <div className="flex justify-between items-center mb-6">
+      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white z-10 px-6 py-4 border-b border-gray-200">
+          <div className="flex justify-between items-center">
             <h2 className="text-2xl font-bold text-gray-900">Flight Booking</h2>
             <button
               onClick={onClose}
-              className="text-gray-500 hover:text-gray-700"
+              className="text-gray-500 hover:text-gray-700 text-xl"
             >
               ×
             </button>
           </div>
 
           {/* Progress Steps */}
-          <div className="flex justify-between mb-8">
+          <div className="flex justify-between mt-4">
             {['Passenger Details', 'Contact Info', 'Preferences'].map((s, i) => (
               <div
                 key={s}
@@ -201,7 +245,7 @@ const FlightBooking = ({ flight, onClose }) => {
                 >
                   {i + 1}
                 </div>
-                <span className="ml-2 text-sm">{s}</span>
+                <span className="ml-2 text-sm hidden md:inline">{s}</span>
                 {i < 2 && (
                   <div
                     className={`w-full h-0.5 mx-4 ${
@@ -212,85 +256,55 @@ const FlightBooking = ({ flight, onClose }) => {
               </div>
             ))}
           </div>
+        </div>
 
-          <form onSubmit={handleSubmit}>
+        <div className="p-6">
+          <form onSubmit={handleSubmit} className="space-y-6">
             {/* Step 1: Passenger Details */}
             {step === 1 && (
               <div className="space-y-6">
-                {formData.passengers.map((passenger, index) => (
-                  <div key={index} className="border rounded-lg p-4">
-                    <h3 className="text-lg font-semibold mb-4">Passenger {index + 1}</h3>
+                {passengers.map((passenger, index) => (
+                  <div key={index} className="bg-gray-50 rounded-lg p-4">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-lg font-semibold text-gray-800">
+                        Passenger {index + 1}
+                      </h3>
+                      {index > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => removePassenger(index)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700">
-                          Title
-                        </label>
-                        <select
-                          value={passenger.title}
-                          onChange={(e) =>
-                            handlePassengerChange(index, 'title', e.target.value)
-                          }
-                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
-                          required
-                        >
-                          <option value="">Select</option>
-                          <option value="Mr">Mr</option>
-                          <option value="Mrs">Mrs</option>
-                          <option value="Ms">Ms</option>
-                          <option value="Dr">Dr</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
                           First Name
                         </label>
                         <input
                           type="text"
                           value={passenger.firstName}
                           onChange={(e) =>
-                            handlePassengerChange(
-                              index,
-                              'firstName',
-                              e.target.value
-                            )
+                            handlePassengerChange(index, 'firstName', e.target.value)
                           }
-                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+                          className="w-full h-10 px-3 rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-primary"
                           required
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
                           Last Name
                         </label>
                         <input
                           type="text"
                           value={passenger.lastName}
                           onChange={(e) =>
-                            handlePassengerChange(
-                              index,
-                              'lastName',
-                              e.target.value
-                            )
+                            handlePassengerChange(index, 'lastName', e.target.value)
                           }
-                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">
-                          Date of Birth
-                        </label>
-                        <input
-                          type="date"
-                          value={passenger.dateOfBirth}
-                          onChange={(e) =>
-                            handlePassengerChange(
-                              index,
-                              'dateOfBirth',
-                              e.target.value
-                            )
-                          }
-                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+                          className="w-full h-10 px-3 rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-primary"
                           required
                         />
                       </div>
@@ -301,16 +315,16 @@ const FlightBooking = ({ flight, onClose }) => {
                         <select
                           value={passenger.seatClass}
                           onChange={(e) => handlePassengerChange(index, 'seatClass', e.target.value)}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary"
+                          className="w-full h-10 px-3 rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-primary"
                         >
                           <option value="economy" disabled={availableSeats.economy === 0}>
-                            Economy {availableSeats.economy === 0 ? '(Full)' : ''}
+                            Economy ({availableSeats.economy} available)
                           </option>
                           <option value="business" disabled={availableSeats.business === 0}>
-                            Business {availableSeats.business === 0 ? '(Full)' : ''}
+                            Business ({availableSeats.business} available)
                           </option>
                           <option value="first" disabled={availableSeats.first === 0}>
-                            First Class {availableSeats.first === 0 ? '(Full)' : ''}
+                            First Class ({availableSeats.first} available)
                           </option>
                         </select>
                       </div>
@@ -320,62 +334,65 @@ const FlightBooking = ({ flight, onClose }) => {
                         </label>
                         <input
                           type="text"
-                          value={passenger.seatNumber}
+                          value={passenger.seatNumber || 'Not assigned yet'}
                           readOnly
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                          className="w-full h-10 px-3 rounded-md border border-gray-300 bg-gray-50"
                         />
                       </div>
                     </div>
                   </div>
                 ))}
-                <button
-                  type="button"
-                  onClick={addPassenger}
-                  className="text-primary hover:text-primary-dark"
-                >
-                  + Add Another Passenger
-                </button>
+                {passengers.length < 9 && (
+                  <button
+                    type="button"
+                    onClick={addPassenger}
+                    className="flex items-center text-primary hover:text-primary-dark"
+                  >
+                    <span className="mr-2">+</span>
+                    Add Another Passenger
+                  </button>
+                )}
               </div>
             )}
 
             {/* Step 2: Contact Information */}
             {step === 2 && (
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    value={formData.contactInfo.email}
-                    onChange={(e) => handleContactChange('email', e.target.value)}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
-                    required
-                  />
+              <div className="space-y-6 bg-gray-50 rounded-lg p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={contactInfo.email}
+                      onChange={(e) => handleContactChange('email', e.target.value)}
+                      className="w-full h-10 px-3 rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-primary"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Phone
+                    </label>
+                    <input
+                      type="tel"
+                      value={contactInfo.phone}
+                      onChange={(e) => handleContactChange('phone', e.target.value)}
+                      className="w-full h-10 px-3 rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-primary"
+                      required
+                    />
+                  </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Phone
-                  </label>
-                  <input
-                    type="tel"
-                    value={formData.contactInfo.phone}
-                    onChange={(e) => handleContactChange('phone', e.target.value)}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     Address
                   </label>
                   <textarea
-                    value={formData.contactInfo.address}
-                    onChange={(e) =>
-                      handleContactChange('address', e.target.value)
-                    }
+                    value={contactInfo.address}
+                    onChange={(e) => handleContactChange('address', e.target.value)}
                     rows={3}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
+                    className="w-full px-3 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-primary"
                     required
                   />
                 </div>
@@ -384,53 +401,46 @@ const FlightBooking = ({ flight, onClose }) => {
 
             {/* Step 3: Preferences */}
             {step === 3 && (
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Seat Preference
-                  </label>
-                  <select
-                    value={formData.seatPreferences.seatType}
-                    onChange={(e) =>
-                      handlePreferenceChange('seatType', e.target.value)
-                    }
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
-                  >
-                    <option value="window">Window</option>
-                    <option value="aisle">Aisle</option>
-                    <option value="middle">Middle</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Meal Preference
-                  </label>
-                  <select
-                    value={formData.seatPreferences.mealPreference}
-                    onChange={(e) =>
-                      handlePreferenceChange('mealPreference', e.target.value)
-                    }
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
-                  >
-                    <option value="standard">Standard</option>
-                    <option value="vegetarian">Vegetarian</option>
-                    <option value="vegan">Vegan</option>
-                    <option value="halal">Halal</option>
-                    <option value="kosher">Kosher</option>
-                  </select>
+              <div className="space-y-6 bg-gray-50 rounded-lg p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Seat Preference
+                    </label>
+                    <select
+                      value={preferences.seatPreference}
+                      onChange={(e) => handlePreferenceChange('seatPreference', e.target.value)}
+                      className="w-full h-10 px-3 rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      <option value="window">Window</option>
+                      <option value="aisle">Aisle</option>
+                      <option value="middle">Middle</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Meal Preference
+                    </label>
+                    <select
+                      value={preferences.mealPreference}
+                      onChange={(e) => handlePreferenceChange('mealPreference', e.target.value)}
+                      className="w-full h-10 px-3 rounded-md border border-gray-300 focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      <option value="standard">Standard</option>
+                      <option value="vegetarian">Vegetarian</option>
+                      <option value="vegan">Vegan</option>
+                      <option value="halal">Halal</option>
+                      <option value="kosher">Kosher</option>
+                    </select>
+                  </div>
                 </div>
                 <div>
                   <label className="flex items-center">
                     <input
                       type="checkbox"
-                      checked={formData.seatPreferences.specialAssistance}
-                      onChange={(e) =>
-                        handlePreferenceChange(
-                          'specialAssistance',
-                          e.target.checked
-                        )
-                      }
-                      className="rounded border-gray-300 text-primary focus:ring-primary"
+                      checked={preferences.specialAssistance}
+                      onChange={(e) => handlePreferenceChange('specialAssistance', e.target.checked)}
+                      className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4"
                     />
                     <span className="ml-2 text-sm text-gray-700">
                       Special Assistance Required
@@ -441,12 +451,12 @@ const FlightBooking = ({ flight, onClose }) => {
             )}
 
             {/* Navigation Buttons */}
-            <div className="mt-8 flex justify-between">
+            <div className="sticky bottom-0 bg-white pt-4 pb-4 border-t border-gray-200 mt-8 flex justify-between">
               {step > 1 && (
                 <button
                   type="button"
                   onClick={() => setStep(step - 1)}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                  className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
                 >
                   Previous
                 </button>
@@ -455,7 +465,7 @@ const FlightBooking = ({ flight, onClose }) => {
                 <button
                   type="button"
                   onClick={() => setStep(step + 1)}
-                  className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark"
+                  className="px-6 py-2 bg-primary text-white rounded-md hover:bg-primary-dark"
                 >
                   Next
                 </button>
@@ -463,7 +473,7 @@ const FlightBooking = ({ flight, onClose }) => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark disabled:opacity-50"
+                  className="px-6 py-2 bg-primary text-white rounded-md hover:bg-primary-dark disabled:opacity-50"
                 >
                   {loading ? 'Processing...' : 'Complete Booking'}
                 </button>

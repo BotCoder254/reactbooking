@@ -50,6 +50,16 @@ const BookingDetails = () => {
     window.print();
   };
 
+  const formatSeatInfo = (passenger) => {
+    if (!passenger.seatNumber) return 'Not assigned';
+    const seatClass = {
+      'E': 'Economy',
+      'B': 'Business',
+      'F': 'First'
+    }[passenger.seatNumber.charAt(0)];
+    return `${seatClass} - ${passenger.seatNumber}`;
+  };
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -157,7 +167,7 @@ const BookingDetails = () => {
                         {passenger.firstName} {passenger.lastName}
                       </div>
                       <div className="text-sm text-gray-500">
-                        {passenger.type} - Seat {passenger.seatNumber || 'Not assigned'}
+                        {passenger.type} - {formatSeatInfo(passenger)}
                       </div>
                     </div>
                     <div className="text-sm text-gray-500">

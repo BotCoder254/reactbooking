@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { FaPlane, FaSearch, FaEdit, FaTrash, FaPlus } from 'react-icons/fa';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import DashboardLayout from '../layouts/DashboardLayout';
 
@@ -23,6 +23,11 @@ const FlightManagement = () => {
     stops: '0',
     aircraft: '',
     totalSeats: {
+      economy: '',
+      business: '',
+      first: ''
+    },
+    seatsAvailable: {
       economy: '',
       business: '',
       first: ''
@@ -82,21 +87,52 @@ const FlightManagement = () => {
 
     try {
       const flightData = {
-        ...formData,
+        airline: formData.airline,
+        flightNumber: formData.flightNumber,
+        departureCity: formData.departureCity,
+        arrivalCity: formData.arrivalCity,
+        departureTime: formData.departureTime,
+        arrivalTime: formData.arrivalTime,
         price: parseFloat(formData.price),
         duration: parseInt(formData.duration),
         stops: parseInt(formData.stops),
+        aircraft: formData.aircraft,
         totalSeats: {
-          economy: parseInt(formData.totalSeats.economy),
-          business: parseInt(formData.totalSeats.business),
-          first: parseInt(formData.totalSeats.first)
+          economy: parseInt(formData.economySeats) || 0,
+          business: parseInt(formData.businessSeats) || 0,
+          first: parseInt(formData.firstSeats) || 0
         },
+        seatsAvailable: {
+          economy: parseInt(formData.economySeats) || 0,
+          business: parseInt(formData.businessSeats) || 0,
+          first: parseInt(formData.firstSeats) || 0
+        },
+        amenities: formData.amenities,
+        status: formData.status,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
 
       if (currentFlight) {
-        await updateDoc(doc(db, 'flights', currentFlight.id), flightData);
+        // When editing, only update seatsAvailable if the total seats have increased
+        const updates = { ...flightData };
+        const currentSeats = currentFlight.totalSeats || {};
+        
+        Object.keys(flightData.totalSeats).forEach(seatClass => {
+          const newTotal = flightData.totalSeats[seatClass];
+          const currentTotal = currentSeats[seatClass] || 0;
+          const currentAvailable = currentFlight.seatsAvailable?.[seatClass] || 0;
+          
+          if (newTotal > currentTotal) {
+            // If increasing total seats, add the difference to available seats
+            updates.seatsAvailable[seatClass] = currentAvailable + (newTotal - currentTotal);
+          } else {
+            // If decreasing or same, keep current available seats (unless it would exceed new total)
+            updates.seatsAvailable[seatClass] = Math.min(currentAvailable, newTotal);
+          }
+        });
+
+        await updateDoc(doc(db, 'flights', currentFlight.id), updates);
       } else {
         await addDoc(collection(db, 'flights'), flightData);
       }
@@ -115,6 +151,11 @@ const FlightManagement = () => {
         stops: '0',
         aircraft: '',
         totalSeats: {
+          economy: '',
+          business: '',
+          first: ''
+        },
+        seatsAvailable: {
           economy: '',
           business: '',
           first: ''
@@ -147,6 +188,11 @@ const FlightManagement = () => {
         economy: flight.totalSeats?.economy?.toString() || '',
         business: flight.totalSeats?.business?.toString() || '',
         first: flight.totalSeats?.first?.toString() || ''
+      },
+      seatsAvailable: {
+        economy: flight.seatsAvailable?.economy?.toString() || '',
+        business: flight.seatsAvailable?.business?.toString() || '',
+        first: flight.seatsAvailable?.first?.toString() || ''
       }
     });
     setShowForm(true);
@@ -360,8 +406,8 @@ const FlightManagement = () => {
                     </label>
                     <input
                       type="number"
-                      name="totalSeats.economy"
-                      value={formData.totalSeats.economy}
+                      name="economySeats"
+                      value={formData.economySeats}
                       onChange={handleChange}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary"
                       required
@@ -374,8 +420,8 @@ const FlightManagement = () => {
                     </label>
                     <input
                       type="number"
-                      name="totalSeats.business"
-                      value={formData.totalSeats.business}
+                      name="businessSeats"
+                      value={formData.businessSeats}
                       onChange={handleChange}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary"
                       required
@@ -388,8 +434,8 @@ const FlightManagement = () => {
                     </label>
                     <input
                       type="number"
-                      name="totalSeats.first"
-                      value={formData.totalSeats.first}
+                      name="firstSeats"
+                      value={formData.firstSeats}
                       onChange={handleChange}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary"
                       required
