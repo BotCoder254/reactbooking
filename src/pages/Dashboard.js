@@ -4,53 +4,65 @@ import { FaPlane, FaHistory, FaUser, FaBell } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
 import DashboardLayout from '../components/layouts/DashboardLayout';
 import { db } from '../config/firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { useNavigate } from 'react-router-dom';
 
 const Dashboard = () => {
   const { user } = useAuth();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchBookings = async () => {
-      if (!user?.uid) {
-        setLoading(false);
-        return;
-      }
+    let unsubscribe;
 
-      try {
-        const q = query(
-          collection(db, 'bookings'),
-          where('userId', '==', user.uid)
-        );
-        const querySnapshot = await getDocs(q);
-        const bookingsData = querySnapshot.docs.map(doc => ({
+    if (user?.uid) {
+      const bookingsQuery = query(
+        collection(db, 'bookings'),
+        where('userId', '==', user.uid)
+      );
+
+      unsubscribe = onSnapshot(bookingsQuery, (snapshot) => {
+        const bookingsData = snapshot.docs.map(doc => ({
           id: doc.id,
-          ...doc.data()
+          ...doc.data(),
+          createdAt: doc.data().createdAt || new Date().toISOString()
         }));
         setBookings(bookingsData);
-      } catch (error) {
+        setLoading(false);
+      }, (error) => {
         console.error('Error fetching bookings:', error);
         setBookings([]);
-      } finally {
         setLoading(false);
+      });
+    }
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
       }
     };
-
-    fetchBookings();
   }, [user?.uid]);
+
+  const upcomingFlights = bookings.filter(b => 
+    b.flightDetails?.departureTime && new Date(b.flightDetails.departureTime) > new Date()
+  ).length;
+
+  const pastFlights = bookings.filter(b => 
+    b.flightDetails?.departureTime && new Date(b.flightDetails.departureTime) < new Date()
+  ).length;
 
   const dashboardCards = [
     {
       title: 'Upcoming Flights',
       icon: <FaPlane className="text-primary text-2xl" />,
-      value: bookings.filter(b => new Date(b.departureDate) > new Date()).length,
+      value: upcomingFlights,
       bgColor: 'bg-primary bg-opacity-10',
     },
     {
       title: 'Past Flights',
       icon: <FaHistory className="text-secondary text-2xl" />,
-      value: bookings.filter(b => new Date(b.departureDate) < new Date()).length,
+      value: pastFlights,
       bgColor: 'bg-secondary bg-opacity-10',
     },
     {
@@ -67,6 +79,17 @@ const Dashboard = () => {
     },
   ];
 
+  const formatDateTime = (dateTimeString) => {
+    if (!dateTimeString) return 'N/A';
+    return new Date(dateTimeString).toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: true
+    });
+  };
+
   return (
     <DashboardLayout>
       {/* Welcome Section */}
@@ -76,7 +99,7 @@ const Dashboard = () => {
         className="mb-8"
       >
         <h1 className="text-3xl font-bold text-gray-800">
-          Welcome back, {user.name || 'Traveler'}!
+          Welcome back, {user?.name || 'Traveler'}!
         </h1>
         <p className="text-gray-600 mt-2">
           Here's what's happening with your travel plans.
@@ -97,7 +120,7 @@ const Dashboard = () => {
               <div>
                 <p className="text-gray-600 text-sm">{card.title}</p>
                 <p className="text-2xl font-bold text-gray-800 mt-2">
-                  {card.value}
+                  {loading ? '-' : card.value}
                 </p>
               </div>
               {card.icon}
@@ -127,42 +150,48 @@ const Dashboard = () => {
                 </tr>
               </thead>
               <tbody>
-                {bookings.map((booking) => (
-                  <tr key={booking.id} className="border-b">
-                    <td className="py-4">
-                      <div>
-                        <p className="font-medium text-gray-800">
-                          {booking.from} → {booking.to}
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          Flight {booking.flightNumber}
-                        </p>
-                      </div>
-                    </td>
-                    <td className="py-4">
-                      {new Date(booking.departureDate).toLocaleDateString()}
-                    </td>
-                    <td className="py-4">
-                      <span className={`px-3 py-1 rounded-full text-sm
-                        ${booking.status === 'Confirmed' ? 'bg-green-100 text-green-800' :
-                          booking.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-red-100 text-red-800'}`}
-                      >
-                        {booking.status}
-                      </span>
-                    </td>
-                    <td className="py-4">
-                      <button className="text-primary hover:text-primary-hover mr-3">
-                        View Details
-                      </button>
-                      {new Date(booking.departureDate) > new Date() && (
-                        <button className="text-red-600 hover:text-red-700">
-                          Cancel
+                {bookings
+                  .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+                  .slice(0, 5)
+                  .map((booking) => (
+                    <tr key={booking.id} className="border-b">
+                      <td className="py-4">
+                        <div>
+                          <p className="font-medium text-gray-800">
+                            {booking.flightDetails?.departureCity || 'N/A'} → {booking.flightDetails?.arrivalCity || 'N/A'}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            Flight {booking.flightDetails?.flightNumber || 'N/A'}
+                          </p>
+                        </div>
+                      </td>
+                      <td className="py-4">
+                        {formatDateTime(booking.flightDetails?.departureTime)}
+                      </td>
+                      <td className="py-4">
+                        <span className={`px-3 py-1 rounded-full text-sm
+                          ${booking.status === 'confirmed' ? 'bg-green-100 text-green-800' :
+                            booking.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-red-100 text-red-800'}`}
+                        >
+                          {booking.status || 'Pending'}
+                        </span>
+                      </td>
+                      <td className="py-4">
+                        <button
+                          onClick={() => navigate(`/bookings/${booking.id}`)}
+                          className="text-primary hover:text-primary-hover mr-3"
+                        >
+                          View Details
                         </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                        {booking.status === 'pending' && new Date(booking.flightDetails?.departureTime) > new Date() && (
+                          <button className="text-red-600 hover:text-red-700">
+                            Cancel
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>

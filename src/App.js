@@ -14,6 +14,10 @@ import UserManagement from './components/admin/UserManagement';
 import FlightManagement from './components/admin/FlightManagement';
 import FlightDetails from './pages/FlightDetails';
 import AllFlights from './pages/AllFlights';
+import PaymentPage from './pages/PaymentPage';
+import BookingManagement from './pages/admin/BookingManagement';
+import BookingDetails from './pages/BookingDetails';
+import AdminBookingDetails from './pages/admin/BookingDetails';
 
 function App() {
   return (
@@ -116,10 +120,24 @@ function App() {
             path="/bookings/:id/payment"
             element={
               <ProtectedRoute>
-                <div>Payment Page</div>
+                <PaymentPage />
               </ProtectedRoute>
             }
           />
+
+          {/* Admin Routes */}
+          <Route
+            path="/admin/bookings"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <BookingManagement />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* New Booking Routes */}
+          <Route path="/bookings/:id" element={<BookingDetails />} />
+          <Route path="/admin/bookings/:id" element={<AdminBookingDetails />} />
         </Routes>
       </AuthContextProvider>
     </Router>

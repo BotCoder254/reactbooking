@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, addDoc } from 'firebase/firestore';
+import { collection } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
 import DashboardLayout from '../components/layouts/DashboardLayout';
@@ -74,8 +75,41 @@ const FlightDetails = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // Add booking logic here
-    navigate('/bookings');
+    
+    // Validate all required fields
+    const requiredFields = ['firstName', 'lastName', 'passportNumber', 'phone', 'dateOfBirth', 'nationality'];
+    const missingFields = requiredFields.filter(field => !passengerInfo[field]);
+    
+    if (missingFields.length > 0) {
+      alert(`Please fill in all required fields: ${missingFields.join(', ')}`);
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // Create booking document with passengers array
+      const bookingData = {
+        userId: user.uid,
+        flightId: flight.id,
+        flightDetails: flight,
+        passengers: [passengerInfo], // Add passenger info as an array
+        selectedClass,
+        totalPrice: calculatePrice(),
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+      };
+
+      const bookingRef = await addDoc(collection(db, 'bookings'), bookingData);
+      
+      // Redirect to payment page
+      navigate(`/bookings/${bookingRef.id}/payment`);
+    } catch (error) {
+      console.error('Error creating booking:', error);
+      alert('Failed to create booking. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (loading) {
@@ -252,6 +286,23 @@ const FlightDetails = () => {
                         onChange={handlePassengerInfoChange}
                         className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary"
                         required
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Nationality
+                    </label>
+                    <div className="relative">
+                      <FaUser className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                      <input
+                        type="text"
+                        name="nationality"
+                        value={passengerInfo.nationality}
+                        onChange={handlePassengerInfoChange}
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary"
+                        required
+                        placeholder="Enter your nationality"
                       />
                     </div>
                   </div>

@@ -17,7 +17,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/layouts/DashboardLayout';
 import { db } from '../../config/firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, onSnapshot } from 'firebase/firestore';
 
 // Register ChartJS components
 ChartJS.register(
@@ -48,87 +48,114 @@ const AdminDashboard = () => {
     labels: [],
     datasets: [],
   });
+  const [recentBookings, setRecentBookings] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchStats();
-    fetchChartData();
+    const unsubscribeStats = setupRealtimeStats();
+    const unsubscribeBookings = setupRealtimeBookings();
+
+    return () => {
+      unsubscribeStats();
+      unsubscribeBookings();
+    };
   }, []);
 
-  const fetchStats = async () => {
-    try {
-      const [flightsSnap, usersSnap, bookingsSnap] = await Promise.all([
-        getDocs(collection(db, 'flights')),
-        getDocs(collection(db, 'users')),
-        getDocs(collection(db, 'bookings')),
-      ]);
+  const setupRealtimeStats = () => {
+    // Setup real-time listeners for collections
+    const flightsUnsubscribe = onSnapshot(collection(db, 'flights'), (snapshot) => {
+      updateStats('totalFlights', snapshot.size);
+    });
 
-      const totalRevenue = bookingsSnap.docs.reduce((acc, doc) => {
-        return acc + (doc.data().price || 0);
+    const usersUnsubscribe = onSnapshot(collection(db, 'users'), (snapshot) => {
+      updateStats('totalUsers', snapshot.size);
+    });
+
+    const bookingsUnsubscribe = onSnapshot(collection(db, 'bookings'), (snapshot) => {
+      const confirmedBookings = snapshot.docs.filter(doc => doc.data().status === 'confirmed');
+      const totalRevenue = confirmedBookings.reduce((acc, doc) => {
+        return acc + (doc.data().totalPrice || 0);
       }, 0);
 
-      setStats({
-        totalFlights: flightsSnap.size,
-        totalUsers: usersSnap.size,
-        totalBookings: bookingsSnap.size,
-        revenue: totalRevenue,
-      });
-    } catch (error) {
-      console.error('Error fetching stats:', error);
-    }
+      updateStats('totalBookings', snapshot.size);
+      updateStats('revenue', totalRevenue);
+      updateChartData(snapshot.docs);
+    });
+
+    return () => {
+      flightsUnsubscribe();
+      usersUnsubscribe();
+      bookingsUnsubscribe();
+    };
   };
 
-  const fetchChartData = async () => {
-    try {
-      const bookingsSnap = await getDocs(collection(db, 'bookings'));
-      const bookings = bookingsSnap.docs.map(doc => ({
-        ...doc.data(),
+  const setupRealtimeBookings = () => {
+    return onSnapshot(collection(db, 'bookings'), (snapshot) => {
+      const bookings = snapshot.docs.map(doc => ({
         id: doc.id,
-      }));
+        ...doc.data(),
+        createdAt: doc.data().createdAt || new Date().toISOString()
+      }))
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 5);
 
-      // Process data for charts
-      const last7Days = Array.from({ length: 7 }, (_, i) => {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        return d.toISOString().split('T')[0];
-      }).reverse();
-
-      const bookingsByDay = last7Days.map(date => ({
-        date,
-        count: bookings.filter(b => b.createdAt?.split('T')[0] === date).length,
-        revenue: bookings
-          .filter(b => b.createdAt?.split('T')[0] === date)
-          .reduce((acc, b) => acc + (b.price || 0), 0),
-      }));
-
-      setBookingData({
-        labels: last7Days.map(date => new Date(date).toLocaleDateString()),
-        datasets: [
-          {
-            label: 'Daily Bookings',
-            data: bookingsByDay.map(d => d.count),
-            borderColor: '#8F87F1',
-            backgroundColor: '#8F87F1',
-            tension: 0.4,
-          },
-        ],
-      });
-
-      setRevenueData({
-        labels: last7Days.map(date => new Date(date).toLocaleDateString()),
-        datasets: [
-          {
-            label: 'Daily Revenue',
-            data: bookingsByDay.map(d => d.revenue),
-            backgroundColor: '#C68EFD',
-          },
-        ],
-      });
-    } catch (error) {
-      console.error('Error fetching chart data:', error);
-    } finally {
+      setRecentBookings(bookings);
       setLoading(false);
-    }
+    });
+  };
+
+  const updateStats = (key, value) => {
+    setStats(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
+  const updateChartData = (bookings) => {
+    const last7Days = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      return d.toISOString().split('T')[0];
+    }).reverse();
+
+    const bookingsByDay = last7Days.map(date => {
+      const dayBookings = bookings.filter(doc => {
+        const bookingDate = doc.data().createdAt?.split('T')[0];
+        return bookingDate === date;
+      });
+
+      const confirmedBookings = dayBookings.filter(doc => doc.data().status === 'confirmed');
+      
+      return {
+        date,
+        count: dayBookings.length,
+        revenue: confirmedBookings.reduce((acc, doc) => acc + (doc.data().totalPrice || 0), 0),
+      };
+    });
+
+    setBookingData({
+      labels: last7Days.map(date => new Date(date).toLocaleDateString()),
+      datasets: [
+        {
+          label: 'Daily Bookings',
+          data: bookingsByDay.map(d => d.count),
+          borderColor: '#8F87F1',
+          backgroundColor: '#8F87F1',
+          tension: 0.4,
+        },
+      ],
+    });
+
+    setRevenueData({
+      labels: last7Days.map(date => new Date(date).toLocaleDateString()),
+      datasets: [
+        {
+          label: 'Daily Revenue',
+          data: bookingsByDay.map(d => d.revenue),
+          backgroundColor: '#C68EFD',
+        },
+      ],
+    });
   };
 
   const statsCards = [
@@ -170,6 +197,20 @@ const AdminDashboard = () => {
         beginAtZero: true,
       },
     },
+  };
+
+  const formatTimeAgo = (dateString) => {
+    const now = new Date();
+    const date = new Date(dateString);
+    const seconds = Math.floor((now - date) / 1000);
+    
+    if (seconds < 60) return 'just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
   };
 
   return (
@@ -257,30 +298,31 @@ const AdminDashboard = () => {
         className="bg-white rounded-lg shadow-sm p-6"
       >
         <h2 className="text-xl font-semibold text-gray-800 mb-4">
-          Recent Activity
+          Recent Bookings
         </h2>
         {loading ? (
           <div className="flex justify-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
           </div>
-        ) : (
+        ) : recentBookings.length > 0 ? (
           <ul className="space-y-4">
-            <li className="flex items-center text-sm">
-              <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-              <span className="text-gray-600">New user registration</span>
-              <span className="ml-auto text-gray-400">2m ago</span>
-            </li>
-            <li className="flex items-center text-sm">
-              <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
-              <span className="text-gray-600">Flight booking completed</span>
-              <span className="ml-auto text-gray-400">5m ago</span>
-            </li>
-            <li className="flex items-center text-sm">
-              <span className="w-2 h-2 bg-yellow-500 rounded-full mr-2"></span>
-              <span className="text-gray-600">New flight added</span>
-              <span className="ml-auto text-gray-400">10m ago</span>
-            </li>
+            {recentBookings.map((booking) => (
+              <li key={booking.id} className="flex items-center text-sm">
+                <span className={`w-2 h-2 rounded-full mr-2 ${
+                  booking.status === 'confirmed' ? 'bg-green-500' :
+                  booking.status === 'pending' ? 'bg-yellow-500' : 'bg-red-500'
+                }`}></span>
+                <span className="text-gray-600">
+                  {booking.flightDetails?.departureCity || 'N/A'} → {booking.flightDetails?.arrivalCity || 'N/A'}
+                </span>
+                <span className="ml-auto text-gray-400">{formatTimeAgo(booking.createdAt)}</span>
+              </li>
+            ))}
           </ul>
+        ) : (
+          <p className="text-gray-500 text-center py-4">
+            No recent bookings
+          </p>
         )}
       </motion.div>
     </DashboardLayout>

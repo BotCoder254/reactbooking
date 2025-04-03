@@ -4,12 +4,14 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
 import DashboardLayout from '../components/layouts/DashboardLayout';
-import { FaPlane, FaCalendar, FaUser, FaTicketAlt } from 'react-icons/fa';
+import { FaPlane, FaCalendar, FaUser, FaTicketAlt, FaEye } from 'react-icons/fa';
+import { useNavigate } from 'react-router-dom';
 
 const MyBookings = () => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchBookings();
@@ -32,57 +34,81 @@ const MyBookings = () => {
     }
   };
 
-  const BookingCard = ({ booking }) => (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-white rounded-lg shadow-sm p-6 mb-4"
-    >
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
-        <div className="flex-1">
-          <div className="flex items-center mb-4">
-            <FaTicketAlt className="text-primary mr-2" />
-            <h3 className="text-lg font-semibold text-gray-800">
-              Booking #{booking.bookingReference}
-            </h3>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <div className="flex items-center text-gray-600 mb-2">
-                <FaPlane className="mr-2" />
-                <span>{booking.flight.from} → {booking.flight.to}</span>
-              </div>
-              <div className="flex items-center text-gray-600 mb-2">
-                <FaCalendar className="mr-2" />
-                <span>{new Date(booking.flight.departureTime).toLocaleDateString()}</span>
-              </div>
+  const BookingCard = ({ booking }) => {
+    const navigate = useNavigate();
+    
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white rounded-lg shadow-sm p-6 mb-4"
+      >
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
+          <div className="flex-1">
+            <div className="flex items-center mb-4">
+              <FaTicketAlt className="text-primary mr-2" />
+              <h3 className="text-lg font-semibold text-gray-800">
+                Booking #{booking.id?.substring(0, 8)}
+              </h3>
             </div>
             
-            <div>
-              <div className="flex items-center text-gray-600 mb-2">
-                <FaUser className="mr-2" />
-                <span>{booking.passengers} Passenger(s)</span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <div className="flex items-center text-gray-600 mb-2">
+                  <FaPlane className="mr-2" />
+                  <span>
+                    {booking.flightDetails?.departureCity || 'N/A'} → {booking.flightDetails?.arrivalCity || 'N/A'}
+                  </span>
+                </div>
+                <div className="flex items-center text-gray-600 mb-2">
+                  <FaCalendar className="mr-2" />
+                  <span>
+                    {booking.flightDetails?.departureTime ? 
+                      new Date(booking.flightDetails.departureTime).toLocaleDateString() : 
+                      'N/A'
+                    }
+                  </span>
+                </div>
               </div>
-              <div className="text-primary font-semibold">
-                Total: ${booking.totalAmount}
+              
+              <div>
+                <div className="flex items-center text-gray-600 mb-2">
+                  <FaUser className="mr-2" />
+                  <span>{booking.passengers?.length || 0} Passenger(s)</span>
+                </div>
+                <div className="text-primary font-semibold">
+                  Total: ${booking.totalPrice?.toFixed(2) || '0.00'}
+                </div>
               </div>
             </div>
+          </div>
+
+          <div className="mt-4 md:mt-0 md:ml-6">
+            <span className={`px-4 py-2 rounded-full text-sm ${
+              booking.status === 'confirmed' ? 'bg-green-100 text-green-800' :
+              booking.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+              'bg-red-100 text-red-800'
+            }`}>
+              {(booking.status?.charAt(0).toUpperCase() + booking.status?.slice(1)) || 'Unknown'}
+            </span>
           </div>
         </div>
 
-        <div className="mt-4 md:mt-0 md:ml-6">
-          <span className={`px-4 py-2 rounded-full text-sm ${
-            booking.status === 'confirmed' ? 'bg-green-100 text-green-800' :
-            booking.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-            'bg-red-100 text-red-800'
-          }`}>
-            {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
-          </span>
+        <div className="flex justify-between items-center mt-4">
+          <div className="text-2xl font-bold text-primary">
+            ${booking?.totalPrice?.toFixed(2) || '0.00'}
+          </div>
+          <button
+            onClick={() => navigate(`/bookings/${booking.id}`)}
+            className="flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors"
+          >
+            <FaEye className="mr-2" />
+            View Details
+          </button>
         </div>
-      </div>
-    </motion.div>
-  );
+      </motion.div>
+    );
+  };
 
   return (
     <DashboardLayout>
