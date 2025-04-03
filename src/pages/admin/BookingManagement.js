@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import DashboardLayout from '../../components/layouts/DashboardLayout';
 import { FaPlane, FaSearch, FaUser, FaClock, FaMoneyBill, FaEye } from 'react-icons/fa';
@@ -14,47 +14,73 @@ const BookingManagement = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetchBookings();
+    const unsubscribe = setupRealtimeBookings();
+    return () => unsubscribe();
   }, []);
 
-  const fetchBookings = async () => {
-    try {
-      const bookingsRef = collection(db, 'bookings');
-      const q = query(bookingsRef, orderBy('createdAt', 'desc'));
-      const querySnapshot = await getDocs(q);
-      const bookingsData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+  const setupRealtimeBookings = () => {
+    const bookingsRef = collection(db, 'bookings');
+    const q = query(bookingsRef, orderBy('createdAt', 'desc'));
+    
+    return onSnapshot(q, (snapshot) => {
+      const bookingsData = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          totalPrice: parseFloat(data.totalPrice || 0).toFixed(2),
+          createdAt: data.createdAt || new Date().toISOString(),
+          paidAt: data.paidAt || null,
+          status: data.status || 'pending',
+          flightDetails: {
+            ...data.flightDetails,
+            departureTime: data.flightDetails?.departureTime || null,
+            arrivalTime: data.flightDetails?.arrivalTime || null,
+            airline: data.flightDetails?.airline || 'N/A',
+            flightNumber: data.flightDetails?.flightNumber || 'N/A',
+            departureCity: data.flightDetails?.departureCity || 'N/A',
+            arrivalCity: data.flightDetails?.arrivalCity || 'N/A'
+          },
+          passengerInfo: {
+            ...data.passengerInfo,
+            firstName: data.passengerInfo?.firstName || 'N/A',
+            lastName: data.passengerInfo?.lastName || ''
+          },
+          selectedClass: data.selectedClass || 'Economy'
+        };
+      });
       setBookings(bookingsData);
-    } catch (error) {
-      console.error('Error fetching bookings:', error);
-    } finally {
       setLoading(false);
-    }
+    });
   };
 
   const filteredBookings = bookings.filter(booking => {
     const matchesSearch = 
-      booking?.flightDetails?.airline?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      booking?.flightDetails?.flightNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      booking?.passengerInfo?.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      booking?.passengerInfo?.lastName?.toLowerCase().includes(searchTerm.toLowerCase());
+      (booking?.flightDetails?.airline?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (booking?.flightDetails?.flightNumber?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (booking?.passengerInfo?.firstName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (booking?.passengerInfo?.lastName?.toLowerCase() || '').includes(searchTerm.toLowerCase());
 
     if (filter === 'all') return matchesSearch;
     return matchesSearch && booking.status === filter;
   });
 
   const formatDateTime = (dateTimeString) => {
-    return new Date(dateTimeString).toLocaleString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: 'numeric',
-      hour12: true
-    });
+    if (!dateTimeString) return 'N/A';
+    try {
+      return new Date(dateTimeString).toLocaleString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric',
+        hour12: true
+      });
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'N/A';
+    }
   };
 
   return (

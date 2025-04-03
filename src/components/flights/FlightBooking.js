@@ -1,15 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { db } from '../../config/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, onSnapshot } from 'firebase/firestore';
 
 const FlightBooking = ({ flight, onClose }) => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [availableSeats, setAvailableSeats] = useState({
+    economy: flight.totalSeats?.economy || 0,
+    business: flight.totalSeats?.business || 0,
+    first: flight.totalSeats?.first || 0
+  });
   const [formData, setFormData] = useState({
     passengers: [{
       title: '',
@@ -18,6 +23,8 @@ const FlightBooking = ({ flight, onClose }) => {
       dateOfBirth: '',
       passportNumber: '',
       nationality: '',
+      seatNumber: '',
+      seatClass: 'economy'
     }],
     contactInfo: {
       email: currentUser?.email || '',
@@ -31,9 +38,70 @@ const FlightBooking = ({ flight, onClose }) => {
     },
   });
 
+  useEffect(() => {
+    const unsubscribe = setupRealtimeSeats();
+    return () => unsubscribe();
+  }, [flight.id]);
+
+  const setupRealtimeSeats = () => {
+    const bookingsRef = collection(db, 'bookings');
+    const q = query(bookingsRef, where('flightId', '==', flight.id));
+    
+    return onSnapshot(q, (snapshot) => {
+      const bookedSeats = {
+        economy: 0,
+        business: 0,
+        first: 0
+      };
+      const occupiedSeatNumbers = new Set();
+
+      snapshot.docs.forEach(doc => {
+        const booking = doc.data();
+        if (booking.status !== 'cancelled') {
+          const passengers = booking.passengers || [];
+          passengers.forEach(passenger => {
+            const seatClass = passenger.seatClass?.toLowerCase() || 'economy';
+            bookedSeats[seatClass]++;
+            if (passenger.seatNumber) {
+              occupiedSeatNumbers.add(passenger.seatNumber);
+            }
+          });
+        }
+      });
+
+      setAvailableSeats({
+        economy: Math.max(0, (flight.totalSeats?.economy || 0) - bookedSeats.economy),
+        business: Math.max(0, (flight.totalSeats?.business || 0) - bookedSeats.business),
+        first: Math.max(0, (flight.totalSeats?.first || 0) - bookedSeats.first)
+      });
+
+      // Update seat numbers for passengers if their seats are taken
+      setFormData(prev => ({
+        ...prev,
+        passengers: prev.passengers.map(passenger => ({
+          ...passenger,
+          seatNumber: occupiedSeatNumbers.has(passenger.seatNumber) ? '' : passenger.seatNumber
+        }))
+      }));
+    });
+  };
+
+  const generateSeatNumber = (seatClass) => {
+    const prefix = seatClass === 'first' ? 'F' : seatClass === 'business' ? 'B' : 'E';
+    const row = Math.floor(Math.random() * 30) + 1;
+    const seat = String.fromCharCode(65 + Math.floor(Math.random() * 6));
+    return `${prefix}${row}${seat}`;
+  };
+
   const handlePassengerChange = (index, field, value) => {
     const newPassengers = [...formData.passengers];
     newPassengers[index] = { ...newPassengers[index], [field]: value };
+    
+    // Auto-assign seat number when class is selected
+    if (field === 'seatClass' && !newPassengers[index].seatNumber) {
+      newPassengers[index].seatNumber = generateSeatNumber(value);
+    }
+    
     setFormData({ ...formData, passengers: newPassengers });
   };
 
@@ -63,6 +131,8 @@ const FlightBooking = ({ flight, onClose }) => {
           dateOfBirth: '',
           passportNumber: '',
           nationality: '',
+          seatNumber: '',
+          seatClass: 'economy'
         },
       ],
     });
@@ -148,11 +218,9 @@ const FlightBooking = ({ flight, onClose }) => {
             {step === 1 && (
               <div className="space-y-6">
                 {formData.passengers.map((passenger, index) => (
-                  <div key={index} className="border-b pb-6">
-                    <h3 className="text-lg font-medium mb-4">
-                      Passenger {index + 1}
-                    </h3>
-                    <div className="grid grid-cols-2 gap-4">
+                  <div key={index} className="border rounded-lg p-4">
+                    <h3 className="text-lg font-semibold mb-4">Passenger {index + 1}</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700">
                           Title
@@ -224,6 +292,37 @@ const FlightBooking = ({ flight, onClose }) => {
                           }
                           className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary"
                           required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Seat Class
+                        </label>
+                        <select
+                          value={passenger.seatClass}
+                          onChange={(e) => handlePassengerChange(index, 'seatClass', e.target.value)}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-primary"
+                        >
+                          <option value="economy" disabled={availableSeats.economy === 0}>
+                            Economy {availableSeats.economy === 0 ? '(Full)' : ''}
+                          </option>
+                          <option value="business" disabled={availableSeats.business === 0}>
+                            Business {availableSeats.business === 0 ? '(Full)' : ''}
+                          </option>
+                          <option value="first" disabled={availableSeats.first === 0}>
+                            First Class {availableSeats.first === 0 ? '(Full)' : ''}
+                          </option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Seat Number
+                        </label>
+                        <input
+                          type="text"
+                          value={passenger.seatNumber}
+                          readOnly
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50"
                         />
                       </div>
                     </div>

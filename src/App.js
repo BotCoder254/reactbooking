@@ -18,6 +18,7 @@ import PaymentPage from './pages/PaymentPage';
 import BookingManagement from './pages/admin/BookingManagement';
 import BookingDetails from './pages/BookingDetails';
 import AdminBookingDetails from './pages/admin/BookingDetails';
+import PaymentSuccess from './pages/PaymentSuccess';
 
 function App() {
   return (
@@ -121,6 +122,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <PaymentPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/payment-success/:id"
+            element={
+              <ProtectedRoute>
+                <PaymentSuccess />
               </ProtectedRoute>
             }
           />

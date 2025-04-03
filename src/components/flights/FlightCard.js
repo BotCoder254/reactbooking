@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { FaPlane, FaWifi, FaUtensils, FaTv, FaPlug, FaHeart, FaRegHeart, FaShare } from 'react-icons/fa';
-import { collection, addDoc, query, where, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, query, where, getDocs, deleteDoc, doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { useAuth } from '../../context/AuthContext';
 
@@ -9,11 +9,46 @@ const FlightCard = ({ flight, onSelect }) => {
   const [isSaved, setIsSaved] = useState(false);
   const [savedId, setSavedId] = useState(null);
   const [showShareTooltip, setShowShareTooltip] = useState(false);
+  const [availableSeats, setAvailableSeats] = useState({
+    economy: flight.totalSeats?.economy || 0,
+    business: flight.totalSeats?.business || 0,
+    first: flight.totalSeats?.first || 0
+  });
   const { user } = useAuth();
 
   useEffect(() => {
     checkIfSaved();
+    const unsubscribe = setupRealtimeSeats();
+    return () => unsubscribe();
   }, [flight.id, user?.uid]);
+
+  const setupRealtimeSeats = () => {
+    // Listen to bookings for this flight to track seat availability
+    const bookingsRef = collection(db, 'bookings');
+    const q = query(bookingsRef, where('flightId', '==', flight.id));
+    
+    return onSnapshot(q, (snapshot) => {
+      const bookedSeats = {
+        economy: 0,
+        business: 0,
+        first: 0
+      };
+
+      snapshot.docs.forEach(doc => {
+        const booking = doc.data();
+        if (booking.status !== 'cancelled') {
+          const seatClass = booking.selectedClass?.toLowerCase() || 'economy';
+          bookedSeats[seatClass] += booking.passengers?.length || 0;
+        }
+      });
+
+      setAvailableSeats({
+        economy: Math.max(0, (flight.totalSeats?.economy || 0) - bookedSeats.economy),
+        business: Math.max(0, (flight.totalSeats?.business || 0) - bookedSeats.business),
+        first: Math.max(0, (flight.totalSeats?.first || 0) - bookedSeats.first)
+      });
+    });
+  };
 
   const checkIfSaved = async () => {
     if (!user) return;
@@ -200,16 +235,24 @@ const FlightCard = ({ flight, onSelect }) => {
             <div className="text-sm text-gray-600">
               <span className="font-semibold">Available Seats:</span>
               <span className="ml-2">
-                Economy: {flight.totalSeats?.economy || 0},
-                Business: {flight.totalSeats?.business || 0},
-                First: {flight.totalSeats?.first || 0}
+                Economy: {availableSeats.economy || 0},
+                Business: {availableSeats.business || 0},
+                First: {availableSeats.first || 0}
               </span>
             </div>
             <button
               onClick={() => onSelect(flight)}
-              className="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary-hover transition-colors"
+              className={`bg-primary text-white px-6 py-2 rounded-lg transition-colors ${
+                Object.values(availableSeats).every(seats => seats === 0)
+                  ? 'opacity-50 cursor-not-allowed'
+                  : 'hover:bg-primary-hover'
+              }`}
+              disabled={Object.values(availableSeats).every(seats => seats === 0)}
             >
-              Book Now
+              {Object.values(availableSeats).every(seats => seats === 0)
+                ? 'Sold Out'
+                : 'Book Now'
+              }
             </button>
           </div>
         </div>
