@@ -259,7 +259,7 @@ const FlightBooking = ({ flight, onClose }) => {
         </div>
 
         <div className="p-6">
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-6">
             {/* Step 1: Passenger Details */}
             {step === 1 && (
               <div className="space-y-6">
@@ -471,7 +471,8 @@ const FlightBooking = ({ flight, onClose }) => {
                 </button>
               ) : (
                 <button
-                  type="submit"
+                  type="button"
+                  onClick={handleSubmit}
                   disabled={loading}
                   className="px-6 py-2 bg-primary text-white rounded-md hover:bg-primary-dark disabled:opacity-50"
                 >
@@ -479,7 +480,7 @@ const FlightBooking = ({ flight, onClose }) => {
                 </button>
               )}
             </div>
-          </form>
+          </div>
         </div>
       </div>
     </motion.div>
