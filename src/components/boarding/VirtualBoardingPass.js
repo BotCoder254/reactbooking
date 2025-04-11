@@ -4,7 +4,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { collection, query, where, getDocs, onSnapshot, doc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { useAuth } from '../../context/AuthContext';
-import { FaPlane, FaQrcode, FaUser, FaMapMarkerAlt, FaClock, FaExchangeAlt } from 'react-icons/fa';
+import { FaPlane, FaQrcode, FaUser, FaMapMarkerAlt, FaClock, FaExchangeAlt, FaInfoCircle } from 'react-icons/fa';
 
 const VirtualBoardingPass = ({ bookingId }) => {
   const [boardingPass, setBoardingPass] = useState(null);
@@ -101,7 +101,38 @@ const VirtualBoardingPass = ({ bookingId }) => {
     return passengers.map(p => p.seatNumber || 'Not Assigned').join(', ');
   };
 
+  const getBoardingStatus = () => {
+    if (!boardingPass?.flightDetails?.boardingTime) return null;
+    const now = new Date();
+    const boardingTime = new Date(boardingPass.flightDetails.boardingTime);
+    const timeDiff = boardingTime - now;
+    
+    if (timeDiff > 1800000) { // More than 30 minutes
+      return {
+        message: `Boarding starts in ${Math.floor(timeDiff / 60000)} minutes`,
+        color: 'text-blue-600'
+      };
+    } else if (timeDiff > 0) { // Less than 30 minutes
+      return {
+        message: 'Boarding soon',
+        color: 'text-yellow-600'
+      };
+    } else if (timeDiff > -1800000) { // Within last 30 minutes
+      return {
+        message: 'Boarding now',
+        color: 'text-green-600'
+      };
+    } else {
+      return {
+        message: 'Boarding closed',
+        color: 'text-red-600'
+      };
+    }
+  };
+
   if (!boardingPass) return null;
+
+  const boardingStatus = getBoardingStatus();
 
   return (
     <div className="max-w-md mx-auto">
@@ -165,6 +196,14 @@ const VirtualBoardingPass = ({ bookingId }) => {
                 </div>
               </div>
             </div>
+
+            {/* Boarding Status */}
+            {boardingStatus && (
+              <div className={`px-6 py-3 ${boardingStatus.color} bg-opacity-10 flex items-center justify-center`}>
+                <FaInfoCircle className="mr-2" />
+                <span className="font-medium">{boardingStatus.message}</span>
+              </div>
+            )}
 
             {/* Passenger Info */}
             <div className="p-6 border-b">

@@ -27,6 +27,7 @@ import BookingManagement from './pages/admin/BookingManagement';
 import AdminBookingDetails from './pages/admin/BookingDetails';
 import ManageOffers from './pages/admin/ManageOffers';
 import CheckInManagement from './pages/admin/CheckInManagement';
+import BoardingManagement from './pages/admin/BoardingManagement';
 
 function App() {
   return (
@@ -167,6 +168,14 @@ function App() {
             element={
               <ProtectedRoute requiredRole="admin">
                 <CheckInManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/boarding"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <BoardingManagement />
               </ProtectedRoute>
             }
           />
