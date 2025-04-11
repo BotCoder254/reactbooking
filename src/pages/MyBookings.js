@@ -4,12 +4,15 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
 import DashboardLayout from '../components/layouts/DashboardLayout';
-import { FaPlane, FaCalendar, FaUser, FaTicketAlt, FaEye } from 'react-icons/fa';
+import { FaPlane, FaCalendar, FaUser, FaTicketAlt, FaEye, FaHistory, FaDownload } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
+import ETicketModal from '../components/flights/ETicketModal';
 
 const MyBookings = () => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [showETicket, setShowETicket] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -17,15 +20,38 @@ const MyBookings = () => {
     fetchBookings();
   }, [user]);
 
+  const getDateFromField = (field) => {
+    if (!field) return new Date();
+    if (field instanceof Date) return field;
+    if (typeof field.toDate === 'function') return field.toDate();
+    if (typeof field === 'string') return new Date(field);
+    return new Date();
+  };
+
   const fetchBookings = async () => {
     try {
       const bookingsRef = collection(db, 'bookings');
       const q = query(bookingsRef, where('userId', '==', user.uid));
       const querySnapshot = await getDocs(q);
-      const bookingsData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      
+      // Get all bookings and handle different date formats
+      let bookingsData = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          createdAt: getDateFromField(data.createdAt),
+          flightDetails: {
+            ...data.flightDetails,
+            departureTime: data.flightDetails?.departureTime ? 
+              getDateFromField(data.flightDetails.departureTime) : null
+          }
+        };
+      });
+
+      // Sort bookings by date in memory
+      bookingsData.sort((a, b) => b.createdAt - a.createdAt);
+      
       setBookings(bookingsData);
     } catch (error) {
       console.error('Error fetching bookings:', error);
@@ -34,8 +60,25 @@ const MyBookings = () => {
     }
   };
 
+  const openETicket = (booking) => {
+    setSelectedBooking(booking);
+    setShowETicket(true);
+  };
+
   const BookingCard = ({ booking }) => {
-    const navigate = useNavigate();
+    const isPastFlight = booking?.flightDetails?.departureTime ? 
+      booking.flightDetails.departureTime < new Date() : false;
+    const statusColor = 
+      booking.status === 'confirmed' ? 'bg-green-100 text-green-800' :
+      booking.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+      'bg-red-100 text-red-800';
+    
+    const formatDate = (date) => {
+      if (!date) return 'N/A';
+      return date instanceof Date ? 
+        date.toLocaleDateString() : 
+        new Date(date).toLocaleDateString();
+    };
     
     return (
       <motion.div
@@ -46,9 +89,13 @@ const MyBookings = () => {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
           <div className="flex-1">
             <div className="flex items-center mb-4">
-              <FaTicketAlt className="text-primary mr-2" />
+              {isPastFlight ? (
+                <FaHistory className="text-primary mr-2" />
+              ) : (
+                <FaTicketAlt className="text-primary mr-2" />
+              )}
               <h3 className="text-lg font-semibold text-gray-800">
-                Booking #{booking.id?.substring(0, 8)}
+                {isPastFlight ? 'Past Flight' : 'Upcoming Flight'} - #{booking.id?.substring(0, 8)}
               </h3>
             </div>
             
@@ -63,10 +110,7 @@ const MyBookings = () => {
                 <div className="flex items-center text-gray-600 mb-2">
                   <FaCalendar className="mr-2" />
                   <span>
-                    {booking.flightDetails?.departureTime ? 
-                      new Date(booking.flightDetails.departureTime).toLocaleDateString() : 
-                      'N/A'
-                    }
+                    {formatDate(booking.flightDetails?.departureTime)}
                   </span>
                 </div>
               </div>
@@ -84,11 +128,7 @@ const MyBookings = () => {
           </div>
 
           <div className="mt-4 md:mt-0 md:ml-6">
-            <span className={`px-4 py-2 rounded-full text-sm ${
-              booking.status === 'confirmed' ? 'bg-green-100 text-green-800' :
-              booking.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-              'bg-red-100 text-red-800'
-            }`}>
+            <span className={`px-4 py-2 rounded-full text-sm ${statusColor}`}>
               {(booking.status?.charAt(0).toUpperCase() + booking.status?.slice(1)) || 'Unknown'}
             </span>
           </div>
@@ -96,15 +136,26 @@ const MyBookings = () => {
 
         <div className="flex justify-between items-center mt-4">
           <div className="text-2xl font-bold text-primary">
-            ${booking?.totalPrice?.toFixed(2) || '0.00'}
+            ${booking.totalPrice?.toFixed(2) || '0.00'}
           </div>
-          <button
-            onClick={() => navigate(`/bookings/${booking.id}`)}
-            className="flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors"
-          >
-            <FaEye className="mr-2" />
-            View Details
-          </button>
+          <div className="flex space-x-3">
+            {booking.status === 'confirmed' && (
+              <button
+                onClick={() => openETicket(booking)}
+                className="flex items-center px-4 py-2 bg-secondary text-white rounded-lg hover:bg-secondary-hover transition-colors"
+              >
+                <FaDownload className="mr-2" />
+                E-Ticket
+              </button>
+            )}
+            <button
+              onClick={() => navigate(`/bookings/${booking.id}`)}
+              className="flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors"
+            >
+              <FaEye className="mr-2" />
+              View Details
+            </button>
+          </div>
         </div>
       </motion.div>
     );
@@ -119,7 +170,7 @@ const MyBookings = () => {
           className="mb-6"
         >
           <h1 className="text-2xl font-bold text-gray-800 mb-2">My Bookings</h1>
-          <p className="text-gray-600">View and manage your flight bookings</p>
+          <p className="text-gray-600">View your flight history and manage bookings</p>
         </motion.div>
 
         {loading ? (
@@ -143,6 +194,12 @@ const MyBookings = () => {
             <p className="text-gray-600">You haven't made any bookings yet.</p>
           </motion.div>
         )}
+
+        <ETicketModal
+          isOpen={showETicket}
+          onClose={() => setShowETicket(false)}
+          booking={selectedBooking}
+        />
       </div>
     </DashboardLayout>
   );
