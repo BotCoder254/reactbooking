@@ -3,7 +3,7 @@ import Sidebar from './Sidebar';
 
 const DashboardLayout = ({ children }) => {
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex">
       {/* Sidebar */}
       <Sidebar />
 
@@ -12,11 +12,11 @@ const DashboardLayout = ({ children }) => {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="min-h-screen pt-6"
+        className="flex-1 min-h-screen overflow-x-hidden"
       >
         {/* Content Area */}
-        <div className="px-6 pb-6">
-          <div className="max-w-7xl mx-auto">
+        <div className="p-6">
+          <div className="max-w-7xl mx-auto w-full">
             {children}
           </div>
         </div>

@@ -85,30 +85,30 @@ const Sidebar = () => {
       )}
 
       {/* Sidebar */}
-    <motion.div
+      <motion.div
         variants={sidebarVariants}
-      animate={isCollapsed ? 'collapsed' : 'expanded'}
+        animate={isCollapsed ? 'collapsed' : 'expanded'}
         className={`fixed left-0 top-0 h-full bg-white shadow-lg z-30 overflow-hidden flex flex-col
           ${isCollapsed ? 'w-20' : 'w-[280px]'}`}
-    >
-      {/* Toggle Button */}
-      <button
+      >
+        {/* Toggle Button */}
+        <button
           onClick={() => setIsCollapsed(!isCollapsed)}
           className="absolute right-4 top-4 p-2 rounded-full hover:bg-gray-100"
-      >
+        >
           {isCollapsed ? <FaBars /> : <FaTimes />}
-      </button>
+        </button>
 
         {/* Logo */}
         <div className="flex items-center h-16 px-6">
-        <img
-          src="/logo.png"
+          <img
+            src="/logo.png"
             alt="FlySavvy"
             className="h-8 w-8"
             onError={(e) => {
               e.target.src = 'https://via.placeholder.com/32';
             }}
-        />
+          />
           {!isCollapsed && (
             <motion.span
               initial={{ opacity: 0 }}
@@ -118,9 +118,9 @@ const Sidebar = () => {
               FlySavvy
             </motion.span>
           )}
-      </div>
+        </div>
 
-      {/* Navigation Items */}
+        {/* Navigation Items */}
         <nav className="flex-1 overflow-y-auto flex flex-col">
           <div className="flex-1">
             {menuItems.map((item) => (
@@ -163,7 +163,7 @@ const Sidebar = () => {
             )}
           </button>
         </nav>
-    </motion.div>
+      </motion.div>
 
       {/* Main Content Margin */}
       <div className={`${isCollapsed ? 'ml-20' : 'ml-[280px]'} transition-all duration-300`} />
