@@ -14,26 +14,45 @@ const VirtualBoardingPass = ({ bookingId }) => {
 
   useEffect(() => {
     if (bookingId) {
-      fetchBoardingPass();
-      subscribeToUpdates();
+      const unsubscribe = fetchBoardingPass();
+      const updateUnsubscribe = subscribeToUpdates();
+
+      return () => {
+        if (unsubscribe) unsubscribe();
+        if (updateUnsubscribe) updateUnsubscribe();
+      };
     }
   }, [bookingId]);
 
-  const fetchBoardingPass = async () => {
+  const getDateFromField = (field) => {
+    if (!field) return null;
+    if (field instanceof Date) return field;
+    if (typeof field.toDate === 'function') return field.toDate();
+    if (typeof field === 'string') return new Date(field);
+    return null;
+  };
+
+  const fetchBoardingPass = () => {
     try {
       const bookingRef = doc(db, 'bookings', bookingId);
-      const unsubscribe = onSnapshot(bookingRef, (doc) => {
+      return onSnapshot(bookingRef, (doc) => {
         if (doc.exists()) {
+          const data = doc.data();
           setBoardingPass({
             id: doc.id,
-            ...doc.data()
+            ...data,
+            flightDetails: {
+              ...data.flightDetails,
+              departureTime: getDateFromField(data.flightDetails?.departureTime),
+              arrivalTime: getDateFromField(data.flightDetails?.arrivalTime),
+              boardingTime: getDateFromField(data.flightDetails?.boardingTime)
+            }
           });
         }
       });
-
-      return () => unsubscribe();
     } catch (error) {
       console.error('Error fetching boarding pass:', error);
+      return null;
     }
   };
 
@@ -42,31 +61,35 @@ const VirtualBoardingPass = ({ bookingId }) => {
       const updatesRef = collection(db, 'flight_updates');
       const q = query(updatesRef, where('bookingId', '==', bookingId));
       
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const updatesData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          timestamp: doc.data().timestamp?.toDate()
-        })).sort((a, b) => b.timestamp - a.timestamp);
+      return onSnapshot(q, (snapshot) => {
+        const updatesData = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            ...data,
+            timestamp: getDateFromField(data.timestamp)
+          };
+        }).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
         
         setUpdates(updatesData);
       });
-
-      return () => unsubscribe();
     } catch (error) {
       console.error('Error subscribing to updates:', error);
+      return null;
     }
   };
 
   const formatTime = (date) => {
-    return new Date(date).toLocaleTimeString('en-US', {
+    if (!date) return 'TBA';
+    return date.toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit'
     });
   };
 
   const formatDate = (date) => {
-    return new Date(date).toLocaleDateString('en-US', {
+    if (!date) return 'TBA';
+    return date.toLocaleDateString('en-US', {
       weekday: 'short',
       month: 'short',
       day: 'numeric'
@@ -115,8 +138,8 @@ const VirtualBoardingPass = ({ bookingId }) => {
             <div className="bg-primary text-white p-6">
               <div className="flex justify-between items-center mb-4">
                 <div>
-                  <h3 className="text-2xl font-bold">{boardingPass.flightDetails?.airline}</h3>
-                  <p className="text-sm opacity-90">Flight {boardingPass.flightDetails?.flightNumber}</p>
+                  <h3 className="text-2xl font-bold">{boardingPass.flightDetails?.airline || 'Airline'}</h3>
+                  <p className="text-sm opacity-90">Flight {boardingPass.flightDetails?.flightNumber || 'N/A'}</p>
                 </div>
                 <button
                   onClick={() => setShowQR(true)}
@@ -127,12 +150,12 @@ const VirtualBoardingPass = ({ bookingId }) => {
               </div>
               <div className="flex items-center justify-between">
                 <div className="text-center">
-                  <p className="text-3xl font-bold">{boardingPass.flightDetails?.departureCity}</p>
+                  <p className="text-3xl font-bold">{boardingPass.flightDetails?.departureCity || 'DEP'}</p>
                   <p className="text-sm opacity-90">{formatTime(boardingPass.flightDetails?.departureTime)}</p>
                 </div>
                 <FaPlane className="mx-4 transform rotate-90" />
                 <div className="text-center">
-                  <p className="text-3xl font-bold">{boardingPass.flightDetails?.arrivalCity}</p>
+                  <p className="text-3xl font-bold">{boardingPass.flightDetails?.arrivalCity || 'ARR'}</p>
                   <p className="text-sm opacity-90">{formatTime(boardingPass.flightDetails?.arrivalTime)}</p>
                 </div>
               </div>
@@ -174,7 +197,9 @@ const VirtualBoardingPass = ({ bookingId }) => {
                   <FaPlane className="text-primary mr-2" />
                   <span className="text-gray-600">Seat</span>
                 </div>
-                <span className="font-semibold">{boardingPass.seatNumber || 'Not Assigned'}</span>
+                <span className="font-semibold">
+                  {boardingPass.passengers?.[0]?.seatNumber || 'Not Assigned'}
+                </span>
               </div>
             </div>
 
@@ -195,7 +220,7 @@ const VirtualBoardingPass = ({ bookingId }) => {
                     >
                       <p className="text-sm text-gray-800">{update.message}</p>
                       <p className="text-xs text-gray-500 mt-1">
-                        {update.timestamp.toLocaleTimeString()}
+                        {update.timestamp ? update.timestamp.toLocaleTimeString() : 'Just now'}
                       </p>
                     </motion.div>
                   ))}

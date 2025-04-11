@@ -83,9 +83,9 @@ const BookingDetails = () => {
 
   return (
     <DashboardLayout>
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
         className="container mx-auto px-4 py-8"
       >
         <div className="mb-6">
@@ -105,7 +105,7 @@ const BookingDetails = () => {
               <div className="flex items-center mb-4">
                 <FaPlane className="text-primary mr-2" />
                 <h2 className="text-lg font-semibold">Flight Details</h2>
-              </div>
+          </div>
               <div className="space-y-3">
                 <p className="flex justify-between">
                   <span className="text-gray-600">Flight Number</span>
@@ -140,8 +140,8 @@ const BookingDetails = () => {
               animate={{ opacity: 1, y: 0 }}
               className="bg-white rounded-lg shadow-sm p-6"
             >
-              <div className="flex items-center mb-4">
-                <FaUser className="text-primary mr-2" />
+                  <div className="flex items-center mb-4">
+                    <FaUser className="text-primary mr-2" />
                 <h2 className="text-lg font-semibold">Passenger Information</h2>
               </div>
               <div className="space-y-4">
@@ -165,7 +165,7 @@ const BookingDetails = () => {
               <div className="flex items-center mb-4">
                 <FaTicketAlt className="text-primary mr-2" />
                 <h2 className="text-lg font-semibold">Payment Information</h2>
-              </div>
+            </div>
               <div className="space-y-3">
                 <p className="flex justify-between">
                   <span className="text-gray-600">Status</span>
@@ -181,7 +181,7 @@ const BookingDetails = () => {
                 </p>
               </div>
             </motion.div>
-          </div>
+            </div>
 
           {/* Virtual Boarding Pass */}
           {booking.status === 'confirmed' && (
@@ -192,7 +192,7 @@ const BookingDetails = () => {
               <VirtualBoardingPass bookingId={booking.id} />
             </motion.div>
           )}
-        </div>
+          </div>
 
         <div className="flex items-center justify-between mt-6">
           <button
@@ -218,8 +218,8 @@ const BookingDetails = () => {
               Print Ticket
             </button>
           </div>
-        </div>
-      </motion.div>
+          </div>
+        </motion.div>
     </DashboardLayout>
   );
 };
