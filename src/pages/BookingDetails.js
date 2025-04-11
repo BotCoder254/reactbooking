@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import DashboardLayout from '../components/layouts/DashboardLayout';
-import { FaPlane, FaUser, FaCalendar, FaClock, FaDownload, FaPrint, FaArrowLeft } from 'react-icons/fa';
+import VirtualBoardingPass from '../components/boarding/VirtualBoardingPass';
+import { FaPlane, FaUser, FaCalendar, FaClock, FaDownload, FaPrint, FaArrowLeft, FaTicketAlt } from 'react-icons/fa';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
@@ -70,152 +71,138 @@ const BookingDetails = () => {
     );
   }
 
+  if (!booking) {
+    return (
+      <DashboardLayout>
+        <div className="text-center py-8">
+          <h2 className="text-2xl font-bold text-gray-800">Booking not found</h2>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout>
-      <div className="container mx-auto px-4 py-8">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="max-w-3xl mx-auto"
-        >
-          <div className="flex items-center justify-between mb-6">
-            <button
-              onClick={() => navigate('/my-bookings')}
-              className="flex items-center text-gray-600 hover:text-primary transition-colors"
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="container mx-auto px-4 py-8"
+      >
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-800">Booking Details</h1>
+          <p className="text-gray-600">Booking Reference: #{booking.id.substring(0, 8)}</p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Booking Information */}
+          <div className="space-y-6">
+            {/* Flight Details */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white rounded-lg shadow-sm p-6"
             >
-              <FaArrowLeft className="mr-2" />
-              Back to My Bookings
-            </button>
-          </div>
-
-          <div id="ticket" className="bg-white rounded-lg shadow-lg p-8 mb-6">
-            <div className="border-b border-gray-200 pb-6 mb-6">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-gray-800">Your Flight Ticket</h2>
-                <div className="text-sm text-gray-500">Booking #{booking?.id?.slice(0, 8)}</div>
+              <div className="flex items-center mb-4">
+                <FaPlane className="text-primary mr-2" />
+                <h2 className="text-lg font-semibold">Flight Details</h2>
               </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <div className="flex items-center mb-4">
-                    <FaPlane className="text-primary mr-2" />
-                    <div>
-                      <div className="text-sm text-gray-500">Flight</div>
-                      <div className="font-semibold">
-                        {booking?.flightDetails?.airline || 'N/A'} - {booking?.flightDetails?.flightNumber || 'N/A'}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center mb-4">
-                    <FaCalendar className="text-primary mr-2" />
-                    <div>
-                      <div className="text-sm text-gray-500">Date</div>
-                      <div className="font-semibold">
-                        {booking?.flightDetails?.departureTime
-                          ? new Date(booking.flightDetails.departureTime).toLocaleDateString()
-                          : 'N/A'}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center mb-4">
-                    <FaClock className="text-primary mr-2" />
-                    <div>
-                      <div className="text-sm text-gray-500">Time</div>
-                      <div className="font-semibold">
-                        {booking?.flightDetails?.departureTime
-                          ? new Date(booking.flightDetails.departureTime).toLocaleTimeString()
-                          : 'N/A'}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex items-center mb-4">
-                    <FaUser className="text-primary mr-2" />
-                    <div>
-                      <div className="text-sm text-gray-500">Passenger(s)</div>
-                      <div className="font-semibold">{booking?.passengers?.length || 0}</div>
-                    </div>
-                  </div>
-
-                  <div className="mb-4">
-                    <div className="text-sm text-gray-500">Route</div>
-                    <div className="font-semibold">
-                      {booking?.flightDetails?.departureCity || 'N/A'} →{' '}
-                      {booking?.flightDetails?.arrivalCity || 'N/A'}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-sm text-gray-500">Class</div>
-                    <div className="font-semibold">{booking?.selectedClass || 'N/A'}</div>
-                  </div>
-                </div>
+              <div className="space-y-3">
+                <p className="flex justify-between">
+                  <span className="text-gray-600">Flight Number</span>
+                  <span className="font-medium">{booking.flightDetails?.flightNumber}</span>
+                </p>
+                <p className="flex justify-between">
+                  <span className="text-gray-600">From</span>
+                  <span className="font-medium">{booking.flightDetails?.departureCity}</span>
+                </p>
+                <p className="flex justify-between">
+                  <span className="text-gray-600">To</span>
+                  <span className="font-medium">{booking.flightDetails?.arrivalCity}</span>
+                </p>
+                <p className="flex justify-between">
+                  <span className="text-gray-600">Date</span>
+                  <span className="font-medium">
+                    {new Date(booking.flightDetails?.departureTime).toLocaleDateString()}
+                  </span>
+                </p>
+                <p className="flex justify-between">
+                  <span className="text-gray-600">Time</span>
+                  <span className="font-medium">
+                    {new Date(booking.flightDetails?.departureTime).toLocaleTimeString()}
+                  </span>
+                </p>
               </div>
-            </div>
+            </motion.div>
 
-            <div className="border-b border-gray-200 pb-6 mb-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">Passenger Information</h3>
+            {/* Passenger Information */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white rounded-lg shadow-sm p-6"
+            >
+              <div className="flex items-center mb-4">
+                <FaUser className="text-primary mr-2" />
+                <h2 className="text-lg font-semibold">Passenger Information</h2>
+              </div>
               <div className="space-y-4">
-                {booking?.passengers?.map((passenger, index) => (
-                  <div key={index} className="flex items-center justify-between">
-                    <div>
-                      <div className="font-semibold">
-                        {passenger.firstName} {passenger.lastName}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {passenger.type} - {formatSeatInfo(passenger)}
-                      </div>
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      {passenger.specialRequests && `Special Requests: ${passenger.specialRequests}`}
-                    </div>
+                {booking.passengers?.map((passenger, index) => (
+                  <div key={index} className="p-4 bg-gray-50 rounded-lg">
+                    <p className="font-medium">
+                      {passenger.title} {passenger.firstName} {passenger.lastName}
+                    </p>
+                    <p className="text-sm text-gray-600">Seat: {passenger.seatNumber || 'Not Assigned'}</p>
                   </div>
                 ))}
               </div>
-            </div>
+            </motion.div>
 
-            <div className="border-b border-gray-200 pb-6 mb-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">Booking Status</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <div className="text-sm text-gray-500">Status</div>
-                  <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold ${
-                    booking?.status === 'confirmed' 
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-yellow-100 text-yellow-800'
+            {/* Payment Information */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white rounded-lg shadow-sm p-6"
+            >
+              <div className="flex items-center mb-4">
+                <FaTicketAlt className="text-primary mr-2" />
+                <h2 className="text-lg font-semibold">Payment Information</h2>
+              </div>
+              <div className="space-y-3">
+                <p className="flex justify-between">
+                  <span className="text-gray-600">Status</span>
+                  <span className={`font-medium ${
+                    booking.status === 'confirmed' ? 'text-green-600' : 'text-yellow-600'
                   }`}>
-                    {(booking?.status || 'Pending').charAt(0).toUpperCase() + (booking?.status || 'Pending').slice(1)}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-sm text-gray-500">Total Amount</div>
-                  <div className="text-2xl font-bold text-primary">
-                    ${booking?.totalPrice?.toFixed(2) || '0.00'}
-                  </div>
-                </div>
+                    {booking.status?.charAt(0).toUpperCase() + booking.status?.slice(1)}
+                  </span>
+                </p>
+                <p className="flex justify-between">
+                  <span className="text-gray-600">Total Amount</span>
+                  <span className="font-medium">${booking.totalPrice?.toFixed(2)}</span>
+                </p>
               </div>
-            </div>
-
-            <div className="flex justify-between items-center">
-              <div>
-                <div className="text-sm text-gray-500">Booking Date</div>
-                <div className="font-semibold">
-                  {booking?.createdAt ? new Date(booking.createdAt).toLocaleString() : 'N/A'}
-                </div>
-              </div>
-              {booking?.status === 'confirmed' && (
-                <div className="text-sm text-green-600 font-semibold">
-                  ✓ Payment Confirmed
-                </div>
-              )}
-            </div>
+            </motion.div>
           </div>
 
-          <div className="flex justify-center space-x-4">
+          {/* Virtual Boarding Pass */}
+          {booking.status === 'confirmed' && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <VirtualBoardingPass bookingId={booking.id} />
+            </motion.div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between mt-6">
+          <button
+            onClick={() => navigate('/my-bookings')}
+            className="flex items-center text-gray-600 hover:text-primary transition-colors"
+          >
+            <FaArrowLeft className="mr-2" />
+            Back to My Bookings
+          </button>
+          <div className="flex space-x-4">
             <button
               onClick={downloadPDF}
               className="flex items-center px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors"
@@ -231,8 +218,8 @@ const BookingDetails = () => {
               Print Ticket
             </button>
           </div>
-        </motion.div>
-      </div>
+        </div>
+      </motion.div>
     </DashboardLayout>
   );
 };
