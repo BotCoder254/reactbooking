@@ -96,6 +96,11 @@ const VirtualBoardingPass = ({ bookingId }) => {
     });
   };
 
+  const formatPassengerSeats = (passengers) => {
+    if (!passengers || passengers.length === 0) return 'Not Assigned';
+    return passengers.map(p => p.seatNumber || 'Not Assigned').join(', ');
+  };
+
   if (!boardingPass) return null;
 
   return (
@@ -168,9 +173,10 @@ const VirtualBoardingPass = ({ bookingId }) => {
                 <h4 className="font-semibold">Passenger</h4>
               </div>
               {boardingPass.passengers?.map((passenger, index) => (
-                <p key={index} className="text-gray-700">
-                  {passenger.title} {passenger.firstName} {passenger.lastName}
-                </p>
+                <div key={index} className="text-gray-700 mb-2">
+                  <p>{passenger.title} {passenger.firstName} {passenger.lastName}</p>
+                  <p className="text-sm text-gray-500 ml-4">Seat: {passenger.seatNumber || 'Not Assigned'}</p>
+                </div>
               ))}
             </div>
 
@@ -195,10 +201,10 @@ const VirtualBoardingPass = ({ bookingId }) => {
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
                   <FaPlane className="text-primary mr-2" />
-                  <span className="text-gray-600">Seat</span>
+                  <span className="text-gray-600">Seats</span>
                 </div>
-                <span className="font-semibold">
-                  {boardingPass.passengers?.[0]?.seatNumber || 'Not Assigned'}
+                <span className="font-semibold text-right">
+                  {formatPassengerSeats(boardingPass.passengers)}
                 </span>
               </div>
             </div>
