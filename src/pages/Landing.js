@@ -1,129 +1,194 @@
+import React from 'react';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
-import { FaPlane, FaUserShield, FaClock } from 'react-icons/fa';
+import Navbar from '../components/landing/Navbar';
+import FlightSearch from '../components/landing/FlightSearch';
+import { FaPlane, FaGlobe, FaShieldAlt, FaClock, FaHeadset, FaStar, FaEnvelope } from 'react-icons/fa';
 
 const Landing = () => {
-  const fadeIn = {
-    initial: { opacity: 0, y: 20 },
-    animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.6 }
-  };
-
-  const features = [
-    {
-      icon: <FaPlane className="text-4xl text-[#8F87F1]" />,
-      title: 'Easy Booking',
-      description: 'Book your flights with just a few clicks'
-    },
-    {
-      icon: <FaUserShield className="text-4xl text-[#C68EFD]" />,
-      title: 'Secure Payments',
-      description: 'Your transactions are protected and secure'
-    },
-    {
-      icon: <FaClock className="text-4xl text-[#E9A5F1]" />,
-      title: '24/7 Support',
-      description: 'Round-the-clock customer service'
-    }
-  ];
-
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#8F87F1] to-[#FED2E2]">
+    <div className="min-h-screen">
+      <Navbar />
+
       {/* Hero Section */}
-      <div className="container mx-auto px-4 pt-20 pb-32">
-        <div className="grid md:grid-cols-2 gap-8 items-center">
-          <motion.div 
-            className="text-white"
-            initial={{ opacity: 0, x: -50 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.8 }}
-          >
-            <h1 className="text-5xl font-bold mb-6">
+      <section
+        className="relative pt-32 pb-40 bg-cover bg-center"
+        style={{
+          backgroundImage: 'url("https://images.unsplash.com/photo-1436491865332-7a61a109cc05?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=2074&q=80")',
+          backgroundBlendMode: 'overlay',
+          backgroundColor: 'rgba(0, 0, 0, 0.5)'
+        }}
+      >
+        <div className="container mx-auto px-4">
+          <div className="text-center text-white mb-12">
+            <motion.h1
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-4xl md:text-6xl font-bold mb-4"
+            >
               Your Journey Begins Here
-            </h1>
-            <p className="text-xl mb-8">
-              Discover amazing destinations and book your next adventure with ease.
-            </p>
-            <div className="space-x-4">
-              <Link 
-                to="/register" 
-                className="bg-[#C68EFD] hover:bg-[#E9A5F1] text-white px-8 py-3 rounded-full font-semibold transition duration-300"
-              >
-                Get Started
-              </Link>
-              <Link 
-                to="/login" 
-                className="bg-white text-[#8F87F1] px-8 py-3 rounded-full font-semibold transition duration-300"
-              >
-                Sign In
-              </Link>
-            </div>
-          </motion.div>
-          
+            </motion.h1>
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="text-xl md:text-2xl"
+            >
+              Discover the world with our best flight deals
+            </motion.p>
+          </div>
           <motion.div
-            initial={{ opacity: 0, x: 50 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.8 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
           >
-            <img 
-              src="https://images.unsplash.com/photo-1436491865332-7a61a109cc05?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1000&q=80" 
-              alt="Travel"
-              className="rounded-lg shadow-xl"
-            />
+            <FlightSearch />
           </motion.div>
         </div>
-      </div>
+      </section>
 
       {/* Features Section */}
-      <div className="bg-white py-20">
+      <section className="py-20 bg-gray-50">
         <div className="container mx-auto px-4">
-          <motion.h2 
-            className="text-4xl font-bold text-center mb-12 text-[#8F87F1]"
-            {...fadeIn}
-          >
-            Why Choose Us
-          </motion.h2>
-          
-          <div className="grid md:grid-cols-3 gap-8">
-            {features.map((feature, index) => (
+          <h2 className="text-3xl font-bold text-center mb-12">Why Choose Us</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {[
+              {
+                icon: <FaGlobe className="text-4xl text-primary" />,
+                title: 'Global Coverage',
+                description: 'Access to flights worldwide with the best airlines'
+              },
+              {
+                icon: <FaShieldAlt className="text-4xl text-primary" />,
+                title: 'Secure Booking',
+                description: 'Safe and secure payment processing'
+              },
+              {
+                icon: <FaHeadset className="text-4xl text-primary" />,
+                title: '24/7 Support',
+                description: 'Round-the-clock customer service'
+              }
+            ].map((feature, index) => (
               <motion.div
                 key={index}
-                className="bg-white p-6 rounded-lg shadow-lg text-center"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.2 }}
+                transition={{ delay: 0.2 * index }}
+                className="text-center p-6 bg-white rounded-lg shadow-sm"
               >
-                <div className="mb-4">{feature.icon}</div>
-                <h3 className="text-xl font-semibold mb-2 text-[#8F87F1]">
-                  {feature.title}
-                </h3>
+                <div className="flex justify-center mb-4">{feature.icon}</div>
+                <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
                 <p className="text-gray-600">{feature.description}</p>
               </motion.div>
             ))}
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Call to Action */}
-      <div className="bg-[#8F87F1] py-16">
-        <div className="container mx-auto px-4 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-          >
-            <h2 className="text-3xl font-bold text-white mb-6">
-              Ready to Start Your Journey?
-            </h2>
-            <Link 
-              to="/register" 
-              className="bg-white text-[#8F87F1] px-8 py-3 rounded-full font-semibold inline-block hover:bg-[#FED2E2] transition duration-300"
-            >
-              Book Now
-            </Link>
-          </motion.div>
+      {/* Popular Destinations */}
+      <section className="py-20">
+        <div className="container mx-auto px-4">
+          <h2 className="text-3xl font-bold text-center mb-12">Popular Destinations</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {[
+              {
+                image: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34',
+                city: 'Paris',
+                country: 'France'
+              },
+              {
+                image: 'https://images.unsplash.com/photo-1538970272646-f61fabb3a8a2',
+                city: 'Tokyo',
+                country: 'Japan'
+              },
+              {
+                image: 'https://images.unsplash.com/photo-1514565131-fce0801e5785',
+                city: 'New York',
+                country: 'USA'
+              }
+            ].map((destination, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 * index }}
+                className="relative rounded-lg overflow-hidden group"
+              >
+                <img
+                  src={destination.image}
+                  alt={destination.city}
+                  className="w-full h-64 object-cover transition-transform duration-300 group-hover:scale-110"
+                />
+                <div className="absolute inset-0 bg-black bg-opacity-40 flex items-end p-6">
+                  <div className="text-white">
+                    <h3 className="text-xl font-semibold">{destination.city}</h3>
+                    <p>{destination.country}</p>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
         </div>
-      </div>
+      </section>
+
+      {/* Newsletter Section */}
+      <section className="py-20 bg-primary">
+        <div className="container mx-auto px-4">
+          <div className="max-w-2xl mx-auto text-center text-white">
+            <h2 className="text-3xl font-bold mb-4">Stay Updated</h2>
+            <p className="mb-8">Subscribe to our newsletter for the best flight deals</p>
+            <div className="flex flex-col md:flex-row gap-4">
+              <input
+                type="email"
+                placeholder="Enter your email"
+                className="flex-1 p-3 rounded-lg text-gray-800 focus:outline-none"
+              />
+              <button className="px-8 py-3 bg-white text-primary font-semibold rounded-lg hover:bg-gray-100 transition-colors">
+                Subscribe
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-gray-900 text-white py-12">
+        <div className="container mx-auto px-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+            <div>
+              <h3 className="text-xl font-semibold mb-4">FlySavvy</h3>
+              <p className="text-gray-400">Your trusted flight booking partner</p>
+            </div>
+            <div>
+              <h4 className="font-semibold mb-4">Quick Links</h4>
+              <ul className="space-y-2 text-gray-400">
+                <li><a href="#" className="hover:text-white transition-colors">About Us</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Contact</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Terms & Conditions</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Privacy Policy</a></li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-semibold mb-4">Support</h4>
+              <ul className="space-y-2 text-gray-400">
+                <li><a href="#" className="hover:text-white transition-colors">FAQs</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Help Center</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Booking Guide</a></li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-semibold mb-4">Contact Us</h4>
+              <ul className="space-y-2 text-gray-400">
+                <li>Email: support@flysavvy.com</li>
+                <li>Phone: +1 (555) 123-4567</li>
+                <li>Address: 123 Aviation St, NY</li>
+              </ul>
+            </div>
+          </div>
+          <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
+            <p>&copy; {new Date().getFullYear()} FlySavvy. All rights reserved.</p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };
