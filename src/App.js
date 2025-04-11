@@ -17,6 +17,7 @@ import BookingDetails from './pages/BookingDetails';
 import PaymentPage from './pages/PaymentPage';
 import PaymentSuccess from './pages/PaymentSuccess';
 import UserProfile from './components/UserProfile';
+import TripBudget from './pages/TripBudget';
 
 // Admin Pages
 import AdminDashboard from './pages/admin/Dashboard';
@@ -99,6 +100,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <SavedFlights />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/budget"
+            element={
+              <ProtectedRoute>
+                <TripBudget />
               </ProtectedRoute>
             }
           />

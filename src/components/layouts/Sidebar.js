@@ -16,7 +16,8 @@ import {
   FaCog,
   FaBookmark,
   FaBell,
-  FaTag
+  FaTag,
+  FaWallet
 } from 'react-icons/fa';
 import { useAuth } from '../../context/AuthContext';
 
@@ -40,6 +41,7 @@ const Sidebar = () => {
     { path: '/flights', icon: <FaPlane />, label: 'All Flights' },
     { path: '/bookings', icon: <FaTicketAlt />, label: 'My Bookings' },
     { path: '/saved', icon: <FaBookmark />, label: 'Saved Flights' },
+    { path: '/budget', icon: <FaWallet />, label: 'Trip Budget' },
     { path: '/profile', icon: <FaUser />, label: 'Profile' },
   ];
 
