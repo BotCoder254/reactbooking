@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FaPlane, FaWifi, FaUtensils, FaTv, FaPlug, FaHeart, FaRegHeart, FaShare } from 'react-icons/fa';
+import { FaPlane, FaWifi, FaUtensils, FaTv, FaPlug, FaHeart, FaRegHeart, FaShare, FaTag } from 'react-icons/fa';
 import { collection, addDoc, query, where, getDocs, deleteDoc, doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { useAuth } from '../../context/AuthContext';
+import { calculateDynamicPrice } from '../../utils/pricingUtils';
 
 const FlightCard = ({ flight, onSelect }) => {
   const [isSaved, setIsSaved] = useState(false);
   const [savedId, setSavedId] = useState(null);
   const [showShareTooltip, setShowShareTooltip] = useState(false);
+  const [dynamicPrice, setDynamicPrice] = useState(flight.price);
+  const [offer, setOffer] = useState(null);
   const [availableSeats, setAvailableSeats] = useState({
     economy: flight.seatsAvailable?.economy || 0,
     business: flight.seatsAvailable?.business || 0,
@@ -18,6 +21,8 @@ const FlightCard = ({ flight, onSelect }) => {
 
   useEffect(() => {
     checkIfSaved();
+    calculatePrice();
+    checkOffers();
     let unsubscribe;
     if (flight.id) {
       unsubscribe = onSnapshot(doc(db, 'flights', flight.id), (snapshot) => {
@@ -40,6 +45,44 @@ const FlightCard = ({ flight, onSelect }) => {
       }
     };
   }, [flight.id]);
+
+  const calculatePrice = () => {
+    const calculatedPrice = calculateDynamicPrice(flight.price, {
+      departureTime: flight.departureTime,
+      bookedSeats: flight.bookedSeats || 0,
+      totalSeats: flight.totalSeats || 100
+    });
+    setDynamicPrice(calculatedPrice);
+  };
+
+  const checkOffers = async () => {
+    try {
+      const now = new Date();
+      const offersRef = collection(db, 'offers');
+      const offersSnapshot = await getDocs(offersRef);
+      const activeOffers = offersSnapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter(offer => 
+          offer.active && 
+          new Date(offer.endTime) > now &&
+          (!offer.routes || offer.routes.length === 0 || offer.routes.includes(`${flight.departureCity}-${flight.arrivalCity}`))
+        );
+
+      if (activeOffers.length > 0) {
+        // Get the best offer
+        const bestOffer = activeOffers.reduce((best, current) => 
+          (current.discountPercentage > best.discountPercentage) ? current : best
+        );
+        setOffer(bestOffer);
+        
+        // Apply the discount
+        const discountedPrice = dynamicPrice * (1 - bestOffer.discountPercentage / 100);
+        setDynamicPrice(Math.round(discountedPrice));
+      }
+    } catch (error) {
+      console.error('Error checking offers:', error);
+    }
+  };
 
   const checkIfSaved = async () => {
     if (!user) return;
@@ -162,7 +205,18 @@ const FlightCard = ({ flight, onSelect }) => {
               {isSaved ? <FaHeart /> : <FaRegHeart />}
             </button>
             <div>
-              <p className="text-xl font-bold text-primary">${flight.price}</p>
+              <div className="flex items-center justify-end gap-2">
+                {dynamicPrice !== flight.price && (
+                  <span className="text-sm text-gray-500 line-through">${flight.price}</span>
+                )}
+                <p className="text-xl font-bold text-primary">${dynamicPrice}</p>
+              </div>
+              {offer && (
+                <div className="flex items-center justify-end text-sm text-green-600">
+                  <FaTag className="mr-1" />
+                  <span>{offer.discountPercentage}% OFF</span>
+                </div>
+              )}
               <p className="text-sm text-gray-500">per person</p>
             </div>
           </div>
