@@ -11,6 +11,21 @@ app.use(express.json());
 app.use(cors());
 app.use(express.static('public'));
 
+// Authentication middleware
+const authenticateRequest = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'No authentication token provided' });
+  }
+
+  const token = authHeader.split(' ')[1];
+  if (token !== process.env.STRIPE_SECRET_KEY) {
+    return res.status(401).json({ error: 'Invalid authentication token' });
+  }
+
+  next();
+};
+
 // Serve the payment page
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -24,7 +39,7 @@ app.get('/config', (req, res) => {
 });
 
 // Create Payment Intent
-app.post('/create-payment-intent', async (req, res) => {
+app.post('/create-payment-intent', authenticateRequest, async (req, res) => {
   try {
     const { amount, currency = 'usd', description } = req.body;
 
@@ -54,9 +69,9 @@ app.post('/create-payment-intent', async (req, res) => {
 });
 
 // Process refund
-app.post('/refund', async (req, res) => {
+app.post('/refund', authenticateRequest, async (req, res) => {
   try {
-    const { paymentIntentId, amount } = req.body;
+    const { paymentIntentId, amount, reason } = req.body;
 
     // First retrieve the payment intent to get the charge ID
     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
@@ -68,8 +83,8 @@ app.post('/refund', async (req, res) => {
     // Create the refund
     const refund = await stripe.refunds.create({
       charge: paymentIntent.latest_charge,
-      amount: amount || undefined, // If amount is not provided, full refund is processed
-      reason: req.body.reason || 'requested_by_customer'
+      amount: amount || undefined,
+      reason: reason || 'requested_by_customer'
     });
 
     res.json({
@@ -89,7 +104,7 @@ app.post('/refund', async (req, res) => {
 });
 
 // Get refund status
-app.get('/refund/:refundId', async (req, res) => {
+app.get('/refund/:refundId', authenticateRequest, async (req, res) => {
   try {
     const refund = await stripe.refunds.retrieve(req.params.refundId);
     res.json(refund);
@@ -123,12 +138,10 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
     case 'payment_intent.succeeded':
       const paymentIntent = event.data.object;
       console.log('Payment succeeded:', paymentIntent.id);
-      // Add your business logic here (e.g., fulfill order, send email, etc.)
       break;
     case 'payment_intent.payment_failed':
       const failedPayment = event.data.object;
       console.log('Payment failed:', failedPayment.id);
-      // Add your failure handling logic here
       break;
     case 'charge.refunded':
       const refund = event.data.object;
@@ -142,7 +155,7 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
 });
 
 // Get payment status
-app.get('/payment-status/:paymentIntentId', async (req, res) => {
+app.get('/payment-status/:paymentIntentId', authenticateRequest, async (req, res) => {
   try {
     const { paymentIntentId } = req.params;
     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);

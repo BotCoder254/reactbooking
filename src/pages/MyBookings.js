@@ -4,15 +4,17 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
 import DashboardLayout from '../components/layouts/DashboardLayout';
-import { FaPlane, FaCalendar, FaUser, FaTicketAlt, FaEye, FaHistory, FaDownload } from 'react-icons/fa';
+import { FaPlane, FaCalendar, FaUser, FaTicketAlt, FaEye, FaHistory, FaDownload, FaMoneyBillWave } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import ETicketModal from '../components/flights/ETicketModal';
+import RefundRequest from '../components/refunds/RefundRequest';
 
 const MyBookings = () => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [showETicket, setShowETicket] = useState(false);
+  const [showRefundModal, setShowRefundModal] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -63,6 +65,33 @@ const MyBookings = () => {
   const openETicket = (booking) => {
     setSelectedBooking(booking);
     setShowETicket(true);
+  };
+
+  const openRefundRequest = (booking) => {
+    setSelectedBooking(booking);
+    setShowRefundModal(true);
+  };
+
+  const handleRefundSuccess = () => {
+    setShowRefundModal(false);
+    fetchBookings(); // Refresh bookings list
+  };
+
+  const canRequestRefund = (booking) => {
+    return (
+      booking.status === 'confirmed' &&
+      !booking.refundStatus &&
+      new Date(booking.flightDetails?.departureTime) > new Date()
+    );
+  };
+
+  const getRefundStatus = (status) => {
+    const statusColors = {
+      pending: 'bg-yellow-100 text-yellow-800',
+      approved: 'bg-green-100 text-green-800',
+      rejected: 'bg-red-100 text-red-800'
+    };
+    return statusColors[status] || '';
   };
 
   const BookingCard = ({ booking }) => {
@@ -127,10 +156,15 @@ const MyBookings = () => {
             </div>
           </div>
 
-          <div className="mt-4 md:mt-0 md:ml-6">
+          <div className="mt-4 md:mt-0 md:ml-6 flex flex-col items-end">
             <span className={`px-4 py-2 rounded-full text-sm ${statusColor}`}>
               {(booking.status?.charAt(0).toUpperCase() + booking.status?.slice(1)) || 'Unknown'}
             </span>
+            {booking.refundStatus && (
+              <span className={`mt-2 px-4 py-2 rounded-full text-sm ${getRefundStatus(booking.refundStatus)}`}>
+                Refund {booking.refundStatus.charAt(0).toUpperCase() + booking.refundStatus.slice(1)}
+              </span>
+            )}
           </div>
         </div>
 
@@ -146,6 +180,15 @@ const MyBookings = () => {
               >
                 <FaDownload className="mr-2" />
                 E-Ticket
+              </button>
+            )}
+            {canRequestRefund(booking) && (
+              <button
+                onClick={() => openRefundRequest(booking)}
+                className="flex items-center px-4 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
+              >
+                <FaMoneyBillWave className="mr-2" />
+                Request Refund
               </button>
             )}
             <button
@@ -200,6 +243,14 @@ const MyBookings = () => {
           onClose={() => setShowETicket(false)}
           booking={selectedBooking}
         />
+
+        {showRefundModal && (
+          <RefundRequest
+            booking={selectedBooking}
+            onClose={() => setShowRefundModal(false)}
+            onSuccess={handleRefundSuccess}
+          />
+        )}
       </div>
     </DashboardLayout>
   );

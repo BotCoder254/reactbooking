@@ -28,6 +28,7 @@ import AdminBookingDetails from './pages/admin/BookingDetails';
 import ManageOffers from './pages/admin/ManageOffers';
 import CheckInManagement from './pages/admin/CheckInManagement';
 import BoardingManagement from './pages/admin/BoardingManagement';
+import RefundManagement from './pages/admin/RefundManagement';
 
 function App() {
   return (
@@ -176,6 +177,14 @@ function App() {
             element={
               <ProtectedRoute requiredRole="admin">
                 <BoardingManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/refunds"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <RefundManagement />
               </ProtectedRoute>
             }
           />

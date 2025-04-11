@@ -20,6 +20,7 @@ import {
   FaWallet,
   FaQrcode,
   FaPlaneDeparture,
+  FaMoneyBillWave,
 } from 'react-icons/fa';
 import { useAuth } from '../../context/AuthContext';
 
@@ -55,6 +56,11 @@ const Sidebar = () => {
     { path: '/admin/offers', icon: <FaTag />, label: 'Offers & Pricing' },
     { path: '/admin/boarding', icon: <FaPlaneDeparture />, label: 'Boarding Management' },
     { path: '/admin/users', icon: <FaUsers />, label: 'User Management' },
+    {
+      path: '/admin/refunds',
+      icon: <FaMoneyBillWave />,
+      label: 'Refund Management'
+    },
   ];
 
   const menuItems = isAdmin ? adminMenuItems : userMenuItems;

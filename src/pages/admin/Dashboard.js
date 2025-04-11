@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FaPlane, FaUsers, FaTicketAlt, FaChartLine } from 'react-icons/fa';
+import { FaPlane, FaUsers, FaTicketAlt, FaChartLine, FaGift, FaCheckCircle, FaDoorOpen, FaMoneyBillWave } from 'react-icons/fa';
 import { Line, Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -18,6 +18,7 @@ import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/layouts/DashboardLayout';
 import { db } from '../../config/firebase';
 import { collection, getDocs, onSnapshot } from 'firebase/firestore';
+import { Link } from 'react-router-dom';
 
 // Register ChartJS components
 ChartJS.register(
@@ -237,6 +238,51 @@ const AdminDashboard = () => {
     return `${days}d ago`;
   };
 
+  const adminLinks = [
+    {
+      title: 'User Management',
+      description: 'Manage user accounts and permissions',
+      icon: <FaUsers className="text-4xl text-primary" />,
+      path: '/admin/users'
+    },
+    {
+      title: 'Flight Management',
+      description: 'Add, edit, and manage flights',
+      icon: <FaPlane className="text-4xl text-primary" />,
+      path: '/admin/flights'
+    },
+    {
+      title: 'Booking Management',
+      description: 'View and manage flight bookings',
+      icon: <FaTicketAlt className="text-4xl text-primary" />,
+      path: '/admin/bookings'
+    },
+    {
+      title: 'Offers Management',
+      description: 'Create and manage special offers',
+      icon: <FaGift className="text-4xl text-primary" />,
+      path: '/admin/offers'
+    },
+    {
+      title: 'Check-in Management',
+      description: 'Manage passenger check-ins',
+      icon: <FaCheckCircle className="text-4xl text-primary" />,
+      path: '/admin/check-in'
+    },
+    {
+      title: 'Boarding Management',
+      description: 'Manage gates and boarding times',
+      icon: <FaDoorOpen className="text-4xl text-primary" />,
+      path: '/admin/boarding'
+    },
+    {
+      title: 'Refund Management',
+      description: 'Process and manage refund requests',
+      icon: <FaMoneyBillWave className="text-4xl text-primary" />,
+      path: '/admin/refunds'
+    }
+  ];
+
   return (
     <DashboardLayout>
       {/* Welcome Section */}
@@ -349,6 +395,32 @@ const AdminDashboard = () => {
           </p>
         )}
       </motion.div>
+
+      {/* Admin Links */}
+      <div className="p-6">
+        <h2 className="text-2xl font-bold mb-6">Admin Links</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {adminLinks.map((link, index) => (
+            <motion.div
+              key={link.path}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: index * 0.1 }}
+            >
+              <Link
+                to={link.path}
+                className="block p-6 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200"
+              >
+                <div className="flex flex-col items-center text-center">
+                  {link.icon}
+                  <h3 className="mt-4 text-xl font-semibold">{link.title}</h3>
+                  <p className="mt-2 text-gray-600">{link.description}</p>
+                </div>
+              </Link>
+            </motion.div>
+          ))}
+        </div>
+      </div>
     </DashboardLayout>
   );
 };

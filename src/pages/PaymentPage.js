@@ -10,13 +10,13 @@ import { loadStripe } from '@stripe/stripe-js';
 import { Elements, useStripe, useElements, PaymentElement } from '@stripe/react-stripe-js';
 import axios from 'axios';
 
-// Stripe API base URL
-const STRIPE_API_URL = 'http://localhost:3001'; // Updated port to match Stripe API server
-
 // Configure axios defaults
-axios.defaults.baseURL = STRIPE_API_URL;
-axios.defaults.headers.common['Content-Type'] = 'application/json';
-axios.defaults.headers.common['Accept'] = 'application/json';
+const stripeApi = axios.create({
+  baseURL: process.env.REACT_APP_STRIPE_API_URL || 'http://localhost:3001',
+  headers: {
+    'Content-Type': 'application/json',
+  }
+});
 
 const PaymentPage = () => {
   const { id } = useParams();
@@ -33,7 +33,7 @@ const PaymentPage = () => {
   useEffect(() => {
     const initializeStripe = async () => {
       try {
-        const response = await axios.get('/config');
+        const response = await stripeApi.get('/config');
         const stripe = await loadStripe(response.data.publishableKey);
         setStripePromise(stripe);
       } catch (error) {
@@ -87,8 +87,8 @@ const PaymentPage = () => {
 
   const createPaymentIntent = async () => {
     try {
-      const response = await axios.post('/create-payment-intent', {
-        amount: Math.round(booking.totalPrice * 100), // Convert to cents
+      const response = await stripeApi.post('/create-payment-intent', {
+        amount: booking.totalPrice,
         currency: 'usd',
         description: `Flight booking ${booking.id} for ${user.email}`,
         metadata: {
@@ -110,7 +110,7 @@ const PaymentPage = () => {
 
   const handlePaymentSuccess = async (paymentIntent) => {
     try {
-      const statusResponse = await axios.get(`/payment-status/${paymentIntent.id}`);
+      const statusResponse = await stripeApi.get(`/payment-status/${paymentIntent.id}`);
       
       if (statusResponse.data.error) {
         throw new Error(statusResponse.data.error.message);
@@ -120,6 +120,7 @@ const PaymentPage = () => {
         await updateDoc(doc(db, 'bookings', booking.id), {
           status: 'confirmed',
           paymentId: paymentIntent.id,
+          paymentIntentId: paymentIntent.id, // Store for refund processing
           paidAt: new Date().toISOString(),
         });
 
