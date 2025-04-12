@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../context/AuthContext';
 import DashboardLayout from '../components/layouts/DashboardLayout';
@@ -9,12 +9,14 @@ import { FaLock, FaCreditCard, FaSpinner } from 'react-icons/fa';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, useStripe, useElements, PaymentElement } from '@stripe/react-stripe-js';
 import axios from 'axios';
+import { toast } from 'react-hot-toast';
 
 // Configure axios defaults
 const stripeApi = axios.create({
   baseURL: process.env.REACT_APP_STRIPE_API_URL || 'http://localhost:3001',
   headers: {
     'Content-Type': 'application/json',
+    'Authorization': `Bearer ${process.env.REACT_APP_STRIPE_SECRET_KEY}`
   }
 });
 
@@ -88,13 +90,10 @@ const PaymentPage = () => {
   const createPaymentIntent = async () => {
     try {
       const response = await stripeApi.post('/create-payment-intent', {
-        amount: booking.totalPrice,
+        amount: Math.round(booking.totalPrice * 100), // Convert to cents
         currency: 'usd',
-        description: `Flight booking ${booking.id} for ${user.email}`,
-        metadata: {
-          bookingId: booking.id,
-          userEmail: user.email
-        }
+        description: `Flight booking ${booking.id}`,
+        bookingId: booking.id
       });
 
       if (response.data.error) {
@@ -104,33 +103,27 @@ const PaymentPage = () => {
       setClientSecret(response.data.clientSecret);
     } catch (error) {
       console.error('Error creating payment intent:', error);
-      setError(error.message || 'Failed to process payment. Please try again.');
+      setError(error.message || 'Failed to initialize payment');
     }
   };
 
   const handlePaymentSuccess = async (paymentIntent) => {
     try {
-      const statusResponse = await stripeApi.get(`/payment-status/${paymentIntent.id}`);
-      
-      if (statusResponse.data.error) {
-        throw new Error(statusResponse.data.error.message);
-      }
+      // Update booking status in Firestore
+      const bookingRef = doc(db, 'bookings', id);
+      await updateDoc(bookingRef, {
+        status: 'confirmed',
+        paymentStatus: 'completed',
+        paymentIntentId: paymentIntent.id,
+        paidAmount: booking.totalPrice,
+        paidAt: serverTimestamp()
+      });
 
-      if (statusResponse.data.status === 'succeeded') {
-        await updateDoc(doc(db, 'bookings', booking.id), {
-          status: 'confirmed',
-          paymentId: paymentIntent.id,
-          paymentIntentId: paymentIntent.id, // Store for refund processing
-          paidAt: new Date().toISOString(),
-        });
-
-        navigate(`/payment-success/${booking.id}`);
-      } else {
-        throw new Error('Payment verification failed');
-      }
+      // Navigate to success page
+      navigate(`/payment-success/${id}`);
     } catch (error) {
-      console.error('Error processing payment:', error);
-      setError(error.response?.data?.error?.message || 'Payment verification failed. Please contact support.');
+      console.error('Error updating booking status:', error);
+      setError('Payment successful but failed to update booking status');
     }
   };
 

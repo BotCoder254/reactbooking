@@ -11,24 +11,14 @@ import { auth } from '../../config/firebase';
 const STRIPE_API_URL = process.env.REACT_APP_STRIPE_API_URL || 'http://localhost:3001';
 const STRIPE_PUBLIC_KEY = process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY;
 
-// Configure axios defaults
-const api = axios.create({
-  baseURL: STRIPE_API_URL,
+// Configure axios instance
+const stripeApi = axios.create({
+  baseURL: process.env.REACT_APP_STRIPE_API_URL || 'http://localhost:3001',
   headers: {
     'Content-Type': 'application/json',
-    'Accept': 'application/json',
-    'Authorization': `Bearer ${STRIPE_PUBLIC_KEY}`
+    'Authorization': `Bearer ${process.env.REACT_APP_STRIPE_SECRET_KEY}`
   }
 });
-
-// Add response interceptor for error handling
-api.interceptors.response.use(
-  response => response,
-  error => {
-    console.error('API Error:', error.response?.data || error.message);
-    throw error.response?.data || error;
-  }
-);
 
 const RefundManager = () => {
   const [refunds, setRefunds] = useState([]);
@@ -82,118 +72,70 @@ const RefundManager = () => {
 
   const verifyPaymentAndProcess = async (paymentIntentId, amount) => {
     try {
-      // First verify the payment intent status
-      const statusResponse = await api.get(`/payment-status/${paymentIntentId}`);
-      
-      if (statusResponse.data.error) {
-        throw new Error(statusResponse.data.error.message);
-      }
-
-      // Check if payment was successful
-      if (statusResponse.data.status !== 'succeeded') {
-        throw new Error('Cannot process refund: Original payment must be successful');
-      }
-
-      // Verify the amount matches
-      if (statusResponse.data.amount !== Math.round(amount * 100)) {
-        throw new Error('Refund amount does not match original payment');
-      }
-
-      // Process the refund through Stripe
-      const refundResponse = await api.post('/refund', {
+      const response = await stripeApi.post('/partial-refund', {
         paymentIntentId,
-        amount: Math.round(amount * 100), // Convert to cents for Stripe
-        reason: 'requested_by_customer'
+        amount,
+        bookingId: selectedRefund.bookingId,
+        adminId: auth.currentUser.uid,
+        reason: 'Approved by admin'
       });
 
-      if (refundResponse.data.error) {
-        throw new Error(refundResponse.data.error.message);
+      if (response.data.success) {
+        return { success: true, refund: response.data.refund };
       }
-
-      // Verify refund status
-      const refundVerification = await api.get(`/refund/${refundResponse.data.refundId}`);
-      if (refundVerification.data.status !== 'succeeded') {
-        throw new Error('Refund processing failed. Please try again.');
-      }
-
-      return refundResponse.data;
+      throw new Error(response.data.error?.message || 'Refund failed');
     } catch (error) {
-      console.error('Payment verification/refund error:', error);
-      throw new Error(error.response?.data?.message || 'Failed to process refund: Payment verification failed');
+      console.error('Refund processing error:', error);
+      throw error;
     }
   };
 
   const handleRefundAction = async (refundId, action, amount) => {
     try {
       setProcessing(true);
-      const refundDoc = await getDoc(doc(db, 'refunds', refundId));
+      const refundRef = doc(db, 'refunds', refundId);
+      const refundDoc = await getDoc(refundRef);
       const refundData = refundDoc.data();
 
       if (action === 'approve') {
-        // Call the refund endpoint with proper headers
-        const response = await fetch(`${process.env.REACT_APP_STRIPE_API_URL}/refund`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.REACT_APP_STRIPE_SECRET_KEY}`
-          },
-          body: JSON.stringify({
-            paymentIntentId: refundData.paymentIntentId,
-            amount: amount,
-            reason: refundData.reason
-          })
-        });
+        const { success, refund } = await verifyPaymentAndProcess(
+          refundData.paymentIntentId,
+          amount || refundData.amount
+        );
 
-        if (!response.ok) {
-          throw new Error('Failed to process refund');
+        if (success) {
+          await updateDoc(refundRef, {
+            status: 'approved',
+            processedAt: serverTimestamp(),
+            processedBy: auth.currentUser.uid,
+            refundId: refund.id
+          });
+
+          toast.success('Refund approved and processed successfully');
         }
-
-        const result = await response.json();
-
-        // Update refund status in Firestore
-        await updateDoc(doc(db, 'refunds', refundId), {
-          status: 'approved',
-          processedAt: serverTimestamp(),
-          processedBy: auth.currentUser.uid,
-          stripeRefundId: result.refundId
-        });
-
-        // Update booking status
-        await updateDoc(doc(db, 'bookings', refundData.bookingId), {
-          refundStatus: 'approved',
-          refundAmount: amount,
-          refundDate: serverTimestamp()
-        });
-
-        toast.success('Refund approved and processed successfully');
       } else if (action === 'reject') {
-        await updateDoc(doc(db, 'refunds', refundId), {
+        await updateDoc(refundRef, {
           status: 'rejected',
           processedAt: serverTimestamp(),
-          processedBy: auth.currentUser.uid
+          processedBy: auth.currentUser.uid,
+          rejectionReason: 'Rejected by admin'
         });
 
         // Update booking status
-        await updateDoc(doc(db, 'bookings', refundData.bookingId), {
-          refundStatus: 'rejected'
+        const bookingRef = doc(db, 'bookings', refundData.bookingId);
+        await updateDoc(bookingRef, {
+          refundStatus: 'rejected',
+          updatedAt: serverTimestamp()
         });
 
-        toast.info('Refund request rejected');
-      } else if (action === 'hold') {
-        await updateDoc(doc(db, 'refunds', refundId), {
-          status: 'on_hold',
-          updatedAt: serverTimestamp(),
-          updatedBy: auth.currentUser.uid
-        });
-
-        toast.info('Refund request put on hold');
+        toast.success('Refund request rejected');
       }
 
-      // Refresh the refund list
+      // Refresh refund requests
       fetchRefunds();
     } catch (error) {
       console.error('Error processing refund action:', error);
-      toast.error('Failed to process refund action');
+      toast.error(error.message || 'Failed to process refund action');
     } finally {
       setProcessing(false);
     }

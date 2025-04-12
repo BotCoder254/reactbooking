@@ -17,6 +17,7 @@
 .env
 ./stripeapi/.env
 .env.development.local
+./stripeapi/twitterclone-47ebf-firebase-adminsdk-ffeu2-4df411987e.json
 .env.test.local
 .env.production.local
 
